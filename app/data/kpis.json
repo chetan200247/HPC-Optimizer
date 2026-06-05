@@ -1,0 +1,14 @@
+{
+  "mean_ci": 283.1,
+  "ci_min": 75.7,
+  "ci_max": 499.9,
+  "low_carbon_share": 56.3,
+  "total_baseline_kg_5d": 145807.6,
+  "total_saved_kg_5d": 4007.6,
+  "reduction_pct": 2.75,
+  "annual_unconstrained_tco2": 293,
+  "annual_ceiling_tco2": 106,
+  "annual_realistic_tco2": 51,
+  "total_nodes": 4626,
+  "mean_utilisation_pct": 68.7
+}

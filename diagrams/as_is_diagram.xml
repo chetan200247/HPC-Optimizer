@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="2338" math="0" shadow="1">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         TITLE
+    ══════════════════════════════════════════════════════════════════ -->
+    <mxCell id="title" value="AS IS — Workload Scheduling Without Carbon Awareness"
+      style="text;html=1;strokeColor=#1e3a5f;fillColor=#1e3a5f;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontColor=#FFFFFF;fontSize=20;fontStyle=1;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="30" width="1100" height="60" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 1 — JOB SUBMISSION
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Section label -->
+    <mxCell id="lbl1" value="STEP 1 · JOB SUBMISSION"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1e3a5f;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="115" width="250" height="25" as="geometry"/>
+    </mxCell>
+
+    <!-- Scientist actor -->
+    <mxCell id="actor" value="&lt;b&gt;Scientist&lt;br/&gt;/ User&lt;/b&gt;"
+      style="shape=mxgraph.basic.person;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="90" y="150" width="70" height="90" as="geometry"/>
+    </mxCell>
+
+    <!-- Job submission detail box -->
+    <mxCell id="submit" value="&lt;b&gt;JOB SUBMITTED WITH:&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;✔  Node count required&lt;br/&gt;✔  Estimated runtime (hours)&lt;br/&gt;✔  Priority level: Low / Medium / High&lt;br/&gt;&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  No deadline flexibility stated&lt;br/&gt;✘  No carbon preference field exists&lt;br/&gt;✘  No concept of &quot;shiftable&quot; vs &quot;urgent&quot;&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=12;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="220" y="145" width="400" height="170" as="geometry"/>
+    </mxCell>
+
+    <!-- Arrow: actor → submit -->
+    <mxCell id="a1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"
+      edge="1" source="actor" target="submit" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- Connector line down -->
+    <mxCell id="a2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="submit" target="queue" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 2 — JOB QUEUE
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl2" value="STEP 2 · JOB QUEUE (SLURM / PBS / LSF)"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1e3a5f;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="345" width="400" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="queue" value="&lt;b&gt;SCHEDULER LOGIC — PRIORITY ONLY&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;Jobs are ordered and dispatched based solely on:&lt;br/&gt;&amp;nbsp;&amp;nbsp;1.  Priority class (High → Medium → Low)&lt;br/&gt;&amp;nbsp;&amp;nbsp;2.  Submission time (first-in, first-out within same priority)&lt;br/&gt;&amp;nbsp;&amp;nbsp;3.  Resource fit (can the job fit on the next available node block?)&lt;br/&gt;&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  No awareness of what time of day it is&lt;br/&gt;✘  No awareness of the current or forecast grid carbon intensity&lt;br/&gt;✘  No distinction made between time-critical and delay-tolerant jobs&lt;br/&gt;✘  Every job is treated as if it must run immediately&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="375" width="830" height="200" as="geometry"/>
+    </mxCell>
+
+    <!-- Arrow: queue → decision -->
+    <mxCell id="a3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="queue" target="decision" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 3 — DECISION
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl3" value="STEP 3 · ONLY DECISION POINT"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1e3a5f;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="600" width="300" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="decision" value="Is a computing&lt;br/&gt;node available&lt;br/&gt;right now?"
+      style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;verticalAlign=middle;"
+      vertex="1" parent="1">
+      <mxGeometry x="280" y="630" width="230" height="140" as="geometry"/>
+    </mxCell>
+
+    <!-- YES branch -->
+    <mxCell id="a4" value="YES" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontStyle=1;fontSize=12;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+      edge="1" source="decision" target="exec" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- NO branch -->
+    <mxCell id="a5" value="NO" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontStyle=1;fontSize=12;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+      edge="1" source="decision" target="wait" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         YES PATH — EXECUTE IMMEDIATELY
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="exec" value="&lt;b&gt;ASSIGN TO NEXT FREE NODE — IMMEDIATELY&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;Job dispatched at the current moment regardless of:&lt;br/&gt;&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  Hour of day (could be 2pm peak or 3am off-peak)&lt;br/&gt;✘  Whether current grid CI is high or low&lt;br/&gt;✘  Whether a much cleaner window exists in 2–6 hours&lt;br/&gt;✘  No delay-tolerant check performed&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="50" y="830" width="380" height="190" as="geometry"/>
+    </mxCell>
+
+    <!-- NO PATH — WAIT -->
+    <mxCell id="wait" value="&lt;b&gt;JOB WAITS IN QUEUE&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• Waits until any node becomes free&lt;br/&gt;• Wait time: minutes to several hours&lt;br/&gt;&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  Carbon intensity still not checked&lt;br/&gt;    during wait period&lt;br/&gt;✘  No attempt to align wait time&lt;br/&gt;    with a low-carbon window&lt;br/&gt;✘  Executes the moment a node frees —&lt;br/&gt;    regardless of grid conditions&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="590" y="830" width="330" height="190" as="geometry"/>
+    </mxCell>
+
+    <!-- Both paths merge to grid -->
+    <mxCell id="a6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="exec" target="grid" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="a7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="wait" target="grid" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         ELECTRICITY GRID
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl4" value="ELECTRICITY SUPPLY — UNMONITORED"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1e3a5f;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="1048" width="350" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="grid" value="&lt;b&gt;TENNESSEE VALLEY AUTHORITY (TVA) — ELECTRICITY GRID&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;The grid dispatches whatever fuel mix is needed to meet current demand.&lt;br/&gt;The data centre has zero visibility and zero influence over this mix.&lt;br/&gt;&lt;br/&gt;&lt;b&gt;Mean generation mix (2019–2022, source: EIA API):&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;&amp;nbsp;&amp;nbsp;Nuclear (NUC)   ████████████████░░░░░░░░  41%  →     0 gCO₂/kWh&lt;br/&gt;&amp;nbsp;&amp;nbsp;Natural Gas (NG) ███████████░░░░░░░░░░░░░░  28%  →   450 gCO₂/kWh&lt;br/&gt;&amp;nbsp;&amp;nbsp;Coal (COL)       ███████░░░░░░░░░░░░░░░░░░  18%  → 1,000 gCO₂/kWh&lt;br/&gt;&amp;nbsp;&amp;nbsp;Hydro (WAT)      █████░░░░░░░░░░░░░░░░░░░░  13%  →     0 gCO₂/kWh&lt;br/&gt;&amp;nbsp;&amp;nbsp;Solar (SUN)      ░░░░░░░░░░░░░░░░░░░░░░░░░  &lt;1%  →     0 gCO₂/kWh&lt;br/&gt;&lt;br/&gt;&lt;b&gt;Mean carbon intensity: 283 gCO₂/kWh  |  Hourly range: 76 – 500 gCO₂/kWh&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  Carbon intensity changes every hour — this information is never queried&lt;br/&gt;✘  The scheduler has no connection to grid data of any kind&lt;br/&gt;✘  Missed opportunity: intensity can vary by up to 2× within a single day&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="1078" width="1100" height="290" as="geometry"/>
+    </mxCell>
+
+    <!-- Arrow: grid → nodes -->
+    <mxCell id="a8" value="Power supplied (any carbon mix, unmonitored)"
+      style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=11;fontStyle=2;"
+      edge="1" source="grid" target="nodes" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         COMPUTING NODES
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl5" value="COMPUTING INFRASTRUCTURE"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1e3a5f;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="1393" width="300" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="nodes" value="&lt;b&gt;COMPUTING NODES — 4,626 Nodes (ORNL Summit / In-Premise Data Centre)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;• Idle nodes consume:   ~350–400W standby (unavoidable baseline draw)&lt;br/&gt;• Active nodes (job running):   700–900W drawn from the grid via PSU inputs&lt;br/&gt;• Power draw is measured by hardware sensors (BMC + NVIDIA DCGM) but never reported back to the scheduler&lt;br/&gt;&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  No carbon cost is recorded per job execution&lt;br/&gt;✘  No signal sent back to the scheduler about energy consumption&lt;br/&gt;✘  No awareness of whether a greener window exists in the next 48 hours&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="1423" width="1100" height="175" as="geometry"/>
+    </mxCell>
+
+    <!-- Arrow: nodes → complete -->
+    <mxCell id="a9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="nodes" target="complete" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         JOB COMPLETES
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="complete" value="&lt;b&gt;JOB COMPLETES&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;✔  Computation delivered successfully&lt;br/&gt;&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  Carbon cost of this job: Unknown&lt;br/&gt;✘  Emissions generated: Unrecorded&lt;br/&gt;✘  No per-job carbon audit trail exists&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="330" y="1648" width="380" height="155" as="geometry"/>
+    </mxCell>
+
+    <!-- Arrow: complete → reporting -->
+    <mxCell id="a10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="complete" target="reporting" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         REPORTING OUTCOME
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl6" value="REPORTING OUTCOME"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1e3a5f;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="1828" width="250" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="reporting" value="&lt;b&gt;Operations Manager&lt;/b&gt;&lt;br/&gt;✔  Knows: job runtime, queue wait time, node utilisation rate&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  Does not know: carbon cost per job, grid CI at time of execution&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;&lt;b&gt;Sustainability / Compliance Officer&lt;/b&gt;&lt;br/&gt;&lt;font color=&#39;#b85450&#39;&gt;✘  Cannot report Scope 2 emissions at job or hourly level&lt;br/&gt;✘  Relies only on annual electricity bills — no hourly carbon breakdown&lt;br/&gt;✘  Cannot produce an EU CSRD-compliant audit trail&lt;br/&gt;✘  Cannot demonstrate emission reduction targets or track progress toward them&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="1858" width="1100" height="195" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         KEY PROBLEMS SUMMARY
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="problems" value="&lt;b&gt;❌  FIVE KEY PROBLEMS WITH THE CURRENT PROCESS&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;1.  Scheduling is carbon-blind — jobs run whenever a node is free, not when the electricity is clean&lt;br/&gt;2.  No job classification — delay-tolerant and time-critical jobs are treated identically by the scheduler&lt;br/&gt;3.  Missed opportunity — carbon intensity varies by up to 2× within a single day on the TVA grid (76–500 gCO₂/kWh)&lt;br/&gt;4.  No measurement — the carbon cost of each job is unknown, making any targeted reduction impossible&lt;br/&gt;5.  CSRD non-compliance — without hourly Scope 2 data, organisations cannot meet EU CSRD disclosure requirements"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#cc0000;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;fontStyle=1;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="2080" width="1100" height="170" as="geometry"/>
+    </mxCell>
+
+  </root>
+</mxGraphModel>

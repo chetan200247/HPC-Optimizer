@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="2338" math="0" shadow="1">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         TITLE
+    ══════════════════════════════════════════════════════════════════ -->
+    <mxCell id="title" value="TO BE — Carbon-Aware Workload Scheduling with 48-Hour Forecasting"
+      style="text;html=1;strokeColor=#1b5e20;fillColor=#1b5e20;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontColor=#FFFFFF;fontSize=20;fontStyle=1;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="30" width="1200" height="60" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 1 — JOB SUBMISSION
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl1" value="STEP 1 · JOB SUBMISSION"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1b5e20;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="115" width="250" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="actor" value="&lt;b&gt;Scientist&lt;br/&gt;/ User&lt;/b&gt;"
+      style="shape=mxgraph.basic.person;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;verticalLabelPosition=bottom;labelPosition=center;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="90" y="148" width="70" height="90" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="submit" value="&lt;b&gt;JOB SUBMITTED WITH:&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;✔  Node count required&lt;br/&gt;✔  Estimated duration (hours)&lt;br/&gt;✔  Hard deadline (must complete by when?)&lt;br/&gt;✔  Priority: &lt;b&gt;Urgent&lt;/b&gt; or &lt;b&gt;Flexible&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;&lt;font color=&#39;#1b5e20&#39;&gt;&lt;b&gt;NEW:&lt;/b&gt; Deadline and flexibility flag now enable&lt;br/&gt;the scheduler to make carbon-aware decisions&lt;/font&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=12;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="220" y="143" width="450" height="185" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="a1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"
+      edge="1" source="actor" target="submit" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="a_s_to_classify" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="submit" target="classify" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 2 — JOB CLASSIFICATION
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl2" value="STEP 2 · JOB CLASSIFICATION  ⬅  NEW STEP"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1b5e20;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="355" width="400" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="classify" value="&lt;b&gt;IS THIS JOB TIME-CRITICAL OR DELAY-TOLERANT?&lt;/b&gt;"
+      style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;verticalAlign=middle;"
+      vertex="1" parent="1">
+      <mxGeometry x="330" y="385" width="340" height="130" as="geometry"/>
+    </mxCell>
+
+    <!-- TIME-CRITICAL path -->
+    <mxCell id="a_tc" value="URGENT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontStyle=1;fontSize=11;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+      edge="1" source="classify" target="timecrit" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- DELAY-TOLERANT path -->
+    <mxCell id="a_dt" value="FLEXIBLE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontStyle=1;fontSize=11;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;"
+      edge="1" source="classify" target="deltol" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- Time-critical box -->
+    <mxCell id="timecrit" value="&lt;b&gt;TIME-CRITICAL JOB&lt;/b&gt;&lt;br/&gt;&lt;i&gt;(~70% of workload — non-shiftable)&lt;/i&gt;&lt;br/&gt;&lt;br/&gt;Examples:&lt;br/&gt;• Real-time experiments with hard deadlines&lt;br/&gt;• Interactive debugging sessions&lt;br/&gt;• Tightly-coupled simulations with &lt; 2h deadline&lt;br/&gt;&lt;br/&gt;→  Routed directly to standard queue&lt;br/&gt;→  Executes immediately (same as As Is)"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=12;spacingTop=8;fontSize=12;verticalAlign=top;fontColor=#333333;"
+      vertex="1" parent="1">
+      <mxGeometry x="50" y="570" width="370" height="220" as="geometry"/>
+    </mxCell>
+
+    <!-- Delay-tolerant box -->
+    <mxCell id="deltol" value="&lt;b&gt;DELAY-TOLERANT JOB&lt;/b&gt;&lt;br/&gt;&lt;i&gt;(~30% of workload — shiftable)&lt;/i&gt;&lt;br/&gt;&lt;br/&gt;Examples:&lt;br/&gt;• Parameter sweeps and batch simulations&lt;br/&gt;• Machine learning model training&lt;br/&gt;• ETL pipelines, backups, post-processing&lt;br/&gt;• Report generation, data archiving&lt;br/&gt;&lt;br/&gt;→  Enters carbon-aware scheduling pipeline&lt;br/&gt;→  Held until a green window is identified"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="700" y="570" width="400" height="220" as="geometry"/>
+    </mxCell>
+
+    <!-- Arrow: delay-tolerant → carbon layer -->
+    <mxCell id="a_dt_ci" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="deltol" target="dataingestion" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- Arrow: time-critical → standard exec -->
+    <mxCell id="a_tc_exec" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="timecrit" target="stdexec" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="stdexec" value="Standard queue&lt;br/&gt;(immediate execution)"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;"
+      vertex="1" parent="1">
+      <mxGeometry x="130" y="850" width="210" height="60" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 3 — CARBON INTELLIGENCE LAYER
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl3" value="STEP 3 · CARBON INTELLIGENCE LAYER  ⬅  NEW"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1b5e20;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="845" width="420" height="25" as="geometry"/>
+    </mxCell>
+
+    <!-- Data ingestion -->
+    <mxCell id="dataingestion" value="&lt;b&gt;DATA INGESTION (runs continuously, updated hourly)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;&lt;b&gt;Source 1 — EIA API v2 (TVA Grid):&lt;/b&gt;&lt;br/&gt;Hourly generation in MWh by fuel type (Coal, Gas, Nuclear, Hydro, Solar, Wind, Other)&lt;br/&gt;Period: January 2019 – present  |  Endpoint: electricity/rto/fuel-type-data&lt;br/&gt;&lt;br/&gt;&lt;b&gt;Source 2 — ORNL Power Telemetry:&lt;/b&gt;&lt;br/&gt;Per-node PSU input power (actual watts drawn from grid) and GPU power (job detection)&lt;br/&gt;Captured at 1-minute intervals from 4,626 computing nodes via BMC + NVIDIA DCGM"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="500" y="875" width="800" height="200" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="a_ing_ci" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="dataingestion" target="calcCI" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- Carbon intensity calculation -->
+    <mxCell id="calcCI" value="&lt;b&gt;CARBON INTENSITY CALCULATION&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;For each hour, carbon intensity (CI) is computed as the generation-weighted&lt;br/&gt;average of IPCC AR5 lifecycle emission factors:&lt;br/&gt;&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;CI (gCO₂/kWh)  =  Σ [ Generation_fuel (MWh) × EF_fuel (gCO₂/kWh) ]&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;────────────────────────────────────&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;Total Generation (MWh)&lt;br/&gt;&lt;br/&gt;Emission factors (IPCC AR5): Coal 1,000 · Gas 450 · Oil 800 · Nuclear 0 · Solar 0 · Hydro 0 · Wind 0&lt;br/&gt;Result: historical CI dataset for TVA grid, 2019–2022 (35,064 hourly records)&lt;br/&gt;Actual TVA mean CI: 283 gCO₂/kWh  |  Range: 76 – 500 gCO₂/kWh"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="500" y="1120" width="800" height="245" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="a_ci_fc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="calcCI" target="forecast" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- 48h Forecast -->
+    <mxCell id="lbl4" value="STEP 4 · 48-HOUR CARBON INTENSITY FORECAST  ⬅  NEW"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1b5e20;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="1388" width="500" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="forecast" value="&lt;b&gt;48-HOUR CARBON INTENSITY FORECAST&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;Three forecasting models are trained on 2019–2022 TVA grid data and compared:&lt;br/&gt;&lt;br/&gt;&amp;nbsp;&amp;nbsp;Model 1 — ARIMA / SARIMA&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;Statistical time-series model with 24-hour seasonal period.&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;Serves as the statistical baseline for comparison.&lt;br/&gt;&lt;br/&gt;&amp;nbsp;&amp;nbsp;Model 2 — Prophet (Meta / Facebook)&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;Automatic daily, weekly, and yearly seasonality detection.&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;Produces native confidence bands for uncertainty quantification.&lt;br/&gt;&lt;br/&gt;&amp;nbsp;&amp;nbsp;Model 3 — XGBoost (Gradient Boosting)&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;Uses engineered features: lags, rolling averages, calendar variables, fuel-mix lags.&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;Typically the best performer on structured time-series data.&lt;br/&gt;&lt;br/&gt;Models compared on holdout test set using MAE, RMSE, and MAPE.&lt;br/&gt;Best model selected for live operational use in the dashboard.&lt;br/&gt;&lt;br/&gt;&lt;b&gt;Output:  Predicted CI for every hour in next 48h + confidence bands (upper / lower)&lt;/b&gt;&lt;br/&gt;Example:  Hour +0: 328 gCO₂/kWh  |  Hour +6: 201 gCO₂/kWh ✔ GREEN  |  Hour +14: 289 gCO₂/kWh"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="500" y="1418" width="800" height="340" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="a_fc_opt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="forecast" target="optimise" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 5 — OPTIMISATION ENGINE
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl5" value="STEP 5 · OPTIMISATION ENGINE  ⬅  NEW"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1b5e20;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="1778" width="360" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="optimise" value="&lt;b&gt;OPTIMISATION ENGINE — TWO METHODS&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;&lt;b&gt;Method A — Greedy Heuristic (fast, real-time):&lt;/b&gt;&lt;br/&gt;Find the earliest block of contiguous hours within the job's deadline window where&lt;br/&gt;the forecast CI is below the daily median. Assign the job to that window.&lt;br/&gt;&lt;br/&gt;&amp;nbsp;&amp;nbsp;Input:  4 hours needed, 500 nodes, deadline: within 24 hours&lt;br/&gt;&amp;nbsp;&amp;nbsp;Best window found:  Hours 6–10  (avg CI = 201 gCO₂/kWh)&lt;br/&gt;&amp;nbsp;&amp;nbsp;vs running now:  Hours 0–4    (avg CI = 328 gCO₂/kWh)&lt;br/&gt;&amp;nbsp;&amp;nbsp;Carbon saving:  (328 − 201) × energy_kWh / 1,000  =  X kg CO₂ saved&lt;br/&gt;&lt;br/&gt;&lt;b&gt;Method B — Linear Programme (optimal, multi-job scheduling):&lt;/b&gt;&lt;br/&gt;Minimise:  Σ [ x[j,t] × duration[j] × CI[t] ]  for all jobs j, hours t&lt;br/&gt;Subject to:&lt;br/&gt;&amp;nbsp;&amp;nbsp;•  Each job runs exactly once within its deadline window&lt;br/&gt;&amp;nbsp;&amp;nbsp;•  Total nodes in use at any hour t  ≤  total available nodes (4,626)&lt;br/&gt;&amp;nbsp;&amp;nbsp;•  Urgent / time-critical jobs are never deferred&lt;br/&gt;&lt;br/&gt;Solver: PuLP with CBC (open-source, no licence cost)&lt;br/&gt;Output: Optimal start time per job · Minimised total carbon cost · Carbon saved vs baseline"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="500" y="1808" width="800" height="370" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="a_opt_exec" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="optimise" target="greenexec" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 6 — CARBON-AWARE EXECUTION
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl6" value="STEP 6 · CARBON-AWARE JOB EXECUTION"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1b5e20;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="2198" width="360" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="greenexec" value="&lt;b&gt;JOB EXECUTES DURING IDENTIFIED GREEN WINDOW&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;Hour:    +0      +1      +2      +3      +4      +5      +6      +7      +8      +9&lt;br/&gt;Status:  WAIT    WAIT    WAIT    WAIT    WAIT    WAIT   &lt;b&gt;RUN&lt;/b&gt;    &lt;b&gt;RUN&lt;/b&gt;    &lt;b&gt;RUN&lt;/b&gt;    &lt;b&gt;RUN&lt;/b&gt;&lt;br/&gt;CI:      328     310     295     280     270     240    &lt;b&gt;201&lt;/b&gt;    &lt;b&gt;195&lt;/b&gt;    &lt;b&gt;210&lt;/b&gt;    &lt;b&gt;220&lt;/b&gt;  gCO₂/kWh&lt;br/&gt;&lt;br/&gt;• PSU input power measured per node — actual electricity drawn from the TVA grid&lt;br/&gt;• Carbon cost calculated per job:  energy_kWh × CI_at_runtime / 1,000 = kg CO₂&lt;br/&gt;• Baseline carbon recorded:  energy_kWh × CI_if_run_immediately / 1,000 = kg CO₂&lt;br/&gt;• Carbon saved:  baseline − actual  (recorded in the audit log and dashboard)"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="500" y="2228" width="800" height="245" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="a_exec_dash" style="edgeStyle=orthogonalEdgeStyle;rounded=0;"
+      edge="1" source="greenexec" target="dashboard" parent="1">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STEP 7 — STREAMLIT DASHBOARD
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="lbl7" value="STEP 7 · DELIVERY — STREAMLIT DASHBOARD"
+      style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontStyle=1;fontColor=#1b5e20;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="2495" width="380" height="25" as="geometry"/>
+    </mxCell>
+
+    <mxCell id="dashboard" value="&lt;b&gt;STREAMLIT DASHBOARD — TWO VIEWS&lt;/b&gt;"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fff0;strokeColor=#1b5e20;align=center;fontSize=13;fontStyle=1;verticalAlign=middle;"
+      vertex="1" parent="1">
+      <mxGeometry x="500" y="2525" width="800" height="50" as="geometry"/>
+    </mxCell>
+
+    <!-- Operations Manager View -->
+    <mxCell id="opsview" value="&lt;b&gt;VIEW 1 — OPERATIONS MANAGER&lt;/b&gt;&lt;br/&gt;&lt;i&gt;For HPC facility operators&lt;/i&gt;&lt;br/&gt;&lt;br/&gt;KPI tiles:&lt;br/&gt;• Current grid carbon intensity (gCO₂/kWh)&lt;br/&gt;• Forecasted minimum CI in next 48h&lt;br/&gt;• Active nodes: 3,612 / 4,626 (78.1%)&lt;br/&gt;• Jobs deferred today: 47&lt;br/&gt;• Avg wait time: 2.3 hrs | Max: 5.8 hrs&lt;br/&gt;&lt;br/&gt;Charts:&lt;br/&gt;• 48-hour CI forecast curve with&lt;br/&gt;  confidence bands&lt;br/&gt;• Green / Amber / Red zone colouring&lt;br/&gt;&lt;br/&gt;Job Scheduler Widget:&lt;br/&gt;Input: nodes / duration / deadline / priority&lt;br/&gt;Output: Optimal start time, estimated CI,&lt;br/&gt;carbon saving vs running immediately"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=12;spacingTop=8;fontSize=11;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="500" y="2590" width="380" height="310" as="geometry"/>
+    </mxCell>
+
+    <!-- CSRD Compliance View -->
+    <mxCell id="csrdview" value="&lt;b&gt;VIEW 2 — CSRD COMPLIANCE&lt;/b&gt;&lt;br/&gt;&lt;i&gt;For sustainability and compliance officers&lt;/i&gt;&lt;br/&gt;&lt;br/&gt;KPI tiles:&lt;br/&gt;• Total carbon saved: ~293 tCO₂/year (proj.)&lt;br/&gt;• Scope 2 reduction achieved: 1.3–4.4%&lt;br/&gt;• Avg emission intensity (gCO₂/kWh)&lt;br/&gt;• Low-carbon share of TVA grid&lt;br/&gt;&lt;br/&gt;Charts:&lt;br/&gt;• Baseline vs optimised hourly CI&lt;br/&gt;• Monthly carbon savings (tCO₂)&lt;br/&gt;• TVA fuel-mix donut chart&lt;br/&gt;• Sensitivity: 20% / 30% / 40% flex&lt;br/&gt;&lt;br/&gt;Exports:&lt;br/&gt;• CSV audit report&lt;br/&gt;• CSRD-formatted PDF&lt;br/&gt;• Methodology notes"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=12;spacingTop=8;fontSize=11;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="920" y="2590" width="380" height="310" as="geometry"/>
+    </mxCell>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         KEY IMPROVEMENTS SUMMARY
+    ══════════════════════════════════════════════════════════════════ -->
+
+    <mxCell id="improvements" value="&lt;b&gt;✅  SEVEN KEY IMPROVEMENTS OVER THE AS IS PROCESS&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;1.  Jobs are classified — delay-tolerant workloads (~30%) are identified and treated differently from time-critical ones&lt;br/&gt;2.  Grid is continuously monitored — 48-hour carbon intensity forecast updated every hour via EIA API&lt;br/&gt;3.  Scheduling is optimised — LP minimises total carbon cost across all pending flexible jobs within their deadlines&lt;br/&gt;4.  Carbon is measured — every job has a baseline carbon cost and actual carbon saving recorded in the audit log&lt;br/&gt;5.  CSRD-ready — hourly Scope 2 data captured and exportable for regulatory disclosure&lt;br/&gt;6.  Zero hardware cost — software-only change to the scheduling layer; no new infrastructure required&lt;br/&gt;7.  Replicable — the same system applies to any in-premise data centre running delay-tolerant workloads&lt;br/&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;(batch ETL, nightly backups, ML training, report generation, video transcoding)"
+      style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ccffcc;strokeColor=#1b5e20;align=left;spacingLeft=14;spacingRight=12;spacingTop=8;fontSize=12;fontStyle=1;verticalAlign=top;"
+      vertex="1" parent="1">
+      <mxGeometry x="80" y="2940" width="1220" height="210" as="geometry"/>
+    </mxCell>
+
+  </root>
+</mxGraphModel>

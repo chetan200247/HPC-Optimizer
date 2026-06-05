@@ -1,10 +1,12 @@
-pandas
-pyarrow
-scikit-learn
-statsmodels
-prophet
-xgboost
-tensorflow
-streamlit
-matplotlib
-seaborn
+# ── Streamlit dashboard deployment (slim) ─────────────────────────────────────
+# This is the runtime dependency set for the live dashboard on Streamlit
+# Community Cloud. It is deliberately minimal — the dashboard reads small
+# precomputed files from app/data/ and runs a numpy-only greedy scheduler, so
+# it needs no heavy ML libraries at runtime.
+#
+# For the full analytics pipeline (notebooks, forecasting, optimisation),
+# install the complete stack instead:  pip install -r requirements-dev.txt
+streamlit>=1.28
+pandas>=2.0
+numpy>=1.24
+plotly>=5.17

@@ -1,0 +1,30 @@
+# Core data processing
+pandas>=2.0
+pyarrow>=12.0
+numpy>=1.24
+python-dotenv>=1.0
+
+# EIA API
+requests>=2.31
+
+# Analysis & modelling
+scipy>=1.11
+scikit-learn>=1.3
+statsmodels>=0.14
+prophet>=1.1
+xgboost>=2.0
+
+# Optimisation (LP / MIP solver)
+pulp>=2.7
+
+# Visualisation
+matplotlib>=3.7
+seaborn>=0.12
+plotly>=5.17
+
+# Dashboard
+streamlit>=1.28
+
+# Notebooks
+jupyter>=1.0
+ipykernel>=6.0

@@ -1,0 +1,130 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="tech-arch-clean" name="Technology Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1560" pageHeight="1260" math="0" shadow="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ════════ TITLE ════════ -->
+        <mxCell id="title" value="Carbon-Aware Scheduling  ·  Solution Architecture" style="text;html=1;rounded=1;fillColor=#0B1F3A;strokeColor=none;fontColor=#FFFFFF;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="30" width="1480" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Turning the grid's hourly carbon swings into measurable, auditable emission savings — at zero hardware cost" style="text;html=1;fillColor=none;strokeColor=none;fontColor=#5B6B7C;fontSize=13;fontStyle=2;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="92" width="1480" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ TIER BANDS (faint backgrounds) ════════ -->
+        <mxCell id="band1" value="" style="rounded=1;fillColor=#F4F6FB;strokeColor=#E0E5F0;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="1480" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="band2" value="" style="rounded=1;fillColor=#F1FAFB;strokeColor=#DCEEF0;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="280" width="1480" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="band3" value="" style="rounded=1;fillColor=#F2F7FE;strokeColor=#DBE8F7;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="410" width="1480" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="band4" value="" style="rounded=1;fillColor=#F7F4FC;strokeColor=#E7DEF4;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="560" width="1480" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="band5" value="" style="rounded=1;fillColor=#F1FAF2;strokeColor=#D8EEDC;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="720" width="1480" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="band6" value="" style="rounded=1;fillColor=#FFF8F0;strokeColor=#F5E6D2;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="880" width="1480" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ TIER LABELS (left rail) ════════ -->
+        <mxCell id="lbl1" value="DATA&#xa;SOURCES" style="text;html=1;fillColor=none;strokeColor=none;fontColor=#3F51B5;fontStyle=1;fontSize=12;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="140" width="110" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl2" value="INGESTION" style="text;html=1;fillColor=none;strokeColor=none;fontColor=#00838F;fontStyle=1;fontSize=12;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="280" width="110" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl3" value="PROCESSING&#xa;&amp; INTEGRATION" style="text;html=1;fillColor=none;strokeColor=none;fontColor=#1565C0;fontStyle=1;fontSize=12;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="410" width="110" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl4" value="ANALYTICS" style="text;html=1;fillColor=none;strokeColor=none;fontColor=#5E35B1;fontStyle=1;fontSize=12;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="560" width="110" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl5" value="DELIVERY" style="text;html=1;fillColor=none;strokeColor=none;fontColor=#2E7D32;fontStyle=1;fontSize=12;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="720" width="110" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl6" value="STAKEHOLDERS" style="text;html=1;fillColor=none;strokeColor=none;fontColor=#E65100;fontStyle=1;fontSize=12;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="880" width="110" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ TIER 1 — DATA SOURCES ════════ -->
+        <mxCell id="s_ornl" value="&lt;b style=&quot;font-size:14px;&quot;&gt;ORNL Summit Telemetry&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;Per-node power · 4,626 nodes · 1-min&lt;/div&gt;&lt;div style=&quot;color:#3F51B5;font-size:11px;margin-top:6px;&quot;&gt;◆ Apache Parquet&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F51B5;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="190" y="160" width="630" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="s_eia" value="&lt;b style=&quot;font-size:14px;&quot;&gt;TVA Grid Generation&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;Hourly fuel mix · 8 fuels · 2019–2022&lt;/div&gt;&lt;div style=&quot;color:#3F51B5;font-size:11px;margin-top:6px;&quot;&gt;◆ EIA Open Data API v2&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F51B5;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="860" y="160" width="660" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ TIER 2 — INGESTION ════════ -->
+        <mxCell id="ingest" value="&lt;b style=&quot;font-size:14px;&quot;&gt;Python Ingestion Layer&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;Auto-pagination · validation at source · idempotent (skip-if-exists) · raw kept immutable&lt;/div&gt;&lt;div style=&quot;color:#00838F;font-size:11px;margin-top:6px;&quot;&gt;◆ pandas&amp;nbsp;&amp;nbsp;◆ pyarrow&amp;nbsp;&amp;nbsp;◆ requests&amp;nbsp;&amp;nbsp;◆ python-dotenv&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#00838F;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="190" y="300" width="1330" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ TIER 3 — PROCESSING ════════ -->
+        <mxCell id="p_demand" value="&lt;b style=&quot;font-size:13px;&quot;&gt;Demand Processor&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;UTC→Eastern align&lt;br&gt;GPU&amp;gt;300W = active&lt;br&gt;min → hourly rollup&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="190" y="430" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p_supply" value="&lt;b style=&quot;font-size:13px;&quot;&gt;Supply Processor&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;Carbon intensity calc&lt;br&gt;(IPCC AR5 factors)&lt;br&gt;feature engineering&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="650" y="430" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p_integ" value="&lt;b style=&quot;font-size:13px;&quot;&gt;Integrator&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;Join on Eastern hour&lt;br&gt;baseline vs optimised CO₂&lt;br&gt;sensitivity 20/30/40%&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1565C0;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="430" width="410" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p_tech" value="◆ pandas&amp;nbsp;&amp;nbsp;◆ NumPy" style="text;html=1;fillColor=none;strokeColor=none;fontColor=#1565C0;fontSize=11;align=right;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="520" width="410" height="18" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ TIER 4 — ANALYTICS ════════ -->
+        <mxCell id="a_desc" value="&lt;b style=&quot;font-size:13px;&quot;&gt;Descriptive&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;Exploratory analysis&lt;br&gt;CI profiles &amp; heatmaps&lt;/div&gt;&lt;div style=&quot;color:#5E35B1;font-size:11px;margin-top:6px;&quot;&gt;◆ matplotlib · seaborn&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5E35B1;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="190" y="580" width="420" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="a_pred" value="&lt;b style=&quot;font-size:13px;&quot;&gt;Predictive — 48h CI Forecast&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;4 models benchmarked (MAE/RMSE/MAPE)&lt;br&gt;&lt;b style=&quot;color:#2E7D32;&quot;&gt;✓ XGBoost selected&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;color:#5E35B1;font-size:11px;margin-top:6px;&quot;&gt;◆ XGBoost · statsmodels · Prophet · scikit-learn&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5E35B1;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="650" y="580" width="420" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="a_pres" value="&lt;b style=&quot;font-size:13px;&quot;&gt;Prescriptive — Scheduler&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:4px;&quot;&gt;Optimal job placement under&lt;br&gt;node &amp; deadline constraints&lt;/div&gt;&lt;div style=&quot;color:#5E35B1;font-size:11px;margin-top:6px;&quot;&gt;◆ PuLP + CBC solver&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5E35B1;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="580" width="410" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ TIER 5 — DELIVERY ════════ -->
+        <mxCell id="del" value="&lt;b style=&quot;font-size:14px;&quot;&gt;Streamlit Dashboard&lt;/b&gt;&amp;nbsp;&amp;nbsp;&lt;span style=&quot;color:#5B6B7C;font-size:11px;font-style:italic;&quot;&gt;chosen over Power BI / Tableau — runs the live ML pipeline in-app&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E7D32;fontSize=12;align=center;verticalAlign=top;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="190" y="740" width="1330" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="del_ops" value="&lt;b&gt;Operations View&lt;/b&gt;&amp;nbsp; live CI · 48h forecast · job scheduler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1FAF2;strokeColor=#66BB6A;fontSize=11;align=center;verticalAlign=middle;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="220" y="785" width="630" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="del_csrd" value="&lt;b&gt;CSRD Compliance View&lt;/b&gt;&amp;nbsp; CO₂ saved · audit-ready exports" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1FAF2;strokeColor=#66BB6A;fontSize=11;align=center;verticalAlign=middle;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="870" y="785" width="630" height="42" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ TIER 6 — STAKEHOLDERS ════════ -->
+        <mxCell id="c_ops" value="&lt;b style=&quot;font-size:13px;&quot;&gt;Operations Manager&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:3px;&quot;&gt;Shifts flexible workloads into clean windows&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="220" y="900" width="630" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c_csrd" value="&lt;b style=&quot;font-size:13px;&quot;&gt;Sustainability &amp; Compliance Officer&lt;/b&gt;&lt;div style=&quot;color:#5B6B7C;font-size:11px;margin-top:3px;&quot;&gt;Tracks savings · files CSRD Scope 2 disclosures&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E65100;fontSize=12;align=center;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="870" y="900" width="630" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ FOUNDATION STRIP ════════ -->
+        <mxCell id="foundation" value="&lt;b style=&quot;color:#FFFFFF;&quot;&gt;FOUNDATION&lt;/b&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;span style=&quot;color:#C7D0DA;&quot;&gt;Python 3.13&amp;nbsp; · &amp;nbsp;centralised config&amp;nbsp; · &amp;nbsp;structured logging&amp;nbsp; · &amp;nbsp;Jupyter (reproducible analysis)&amp;nbsp; · &amp;nbsp;Git / GitHub&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#37474F;strokeColor=none;fontSize=12;align=center;verticalAlign=middle;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1000" width="1480" height="44" as="geometry" />
+        </mxCell>
+
+        <!-- ════════ FLOW ARROWS ════════ -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#90A4AE;strokeWidth=2;" edge="1" parent="1" source="s_ornl" target="ingest"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#90A4AE;strokeWidth=2;" edge="1" parent="1" source="s_eia" target="ingest"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#90A4AE;strokeWidth=2;" edge="1" parent="1" source="ingest" target="p_supply"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#90A4AE;strokeWidth=2;" edge="1" parent="1" source="p_supply" target="a_pred"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#90A4AE;strokeWidth=2;" edge="1" parent="1" source="a_pred" target="del"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#90A4AE;strokeWidth=2;" edge="1" parent="1" source="del_ops" target="c_ops"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#90A4AE;strokeWidth=2;" edge="1" parent="1" source="del_csrd" target="c_csrd"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
