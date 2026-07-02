@@ -43,3 +43,6 @@ ENV/
 notebooks/supply_all_years.csv
 notebooks/filename.csv
 notebooks/data/
+
+# Personal wireframe screenshots (not needed in repo)
+WhatsApp Image*

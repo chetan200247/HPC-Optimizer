@@ -60,9 +60,11 @@ PSU_POWER_COLS = ["ps0_input_power", "ps1_input_power"]
 PARQUET_READ_COLS = ["timestamp", "hostname", "node_state"] + GPU_POWER_COLS + PSU_POWER_COLS
 
 # A node is running a job when its total GPU power exceeds this threshold (Watts).
-# Summit V100 GPUs idle at ~30 W each → 6 GPUs × 30 W = ~180 W idle total.
-# Any meaningful GPU workload pushes total above 300 W.
-GPU_ACTIVE_THRESHOLD_W = 300
+# Empirically (see gpu_threshold_check.png), the per-node total-GPU-power
+# distribution is multi-modal: an idle cluster at ~200–225 W, then a clear
+# low-density valley at ~225–275 W, then the active clusters from ~290 W upward.
+# 250 W sits in that valley, cleanly separating idle from active nodes.
+GPU_ACTIVE_THRESHOLD_W = 250
 
 # ── Workload flexibility assumptions (literature-backed) ─────────────────────
 SHIFTABLE_FRACTION   = 0.30   # Conservative central estimate (30 %)

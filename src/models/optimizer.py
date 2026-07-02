@@ -417,3 +417,79 @@ def optimize_load_shift(
         carbon_saved_pct=round(pct, 3),
         energy_shifted_kwh=round(shifted_energy, 1),
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Joint carbon + cost scheduling
+# ══════════════════════════════════════════════════════════════════════════════
+
+def joint_greedy_schedule(
+    ci_forecast: np.ndarray,
+    price_forecast: np.ndarray,
+    job: Job,
+    weight: float = 0.7,
+    power_per_node: float = POWER_PER_NODE_KW,
+) -> Dict:
+    """
+    Greedy per-job scheduler that co-optimises carbon and electricity cost.
+
+    The objective is a weighted blend of normalised carbon intensity and
+    normalised price over the job's runtime window:
+
+        score(t) = weight * carbon_norm[t..t+d] + (1 - weight) * price_norm[t..t+d]
+
+    weight = 1.0 -> pure carbon · 0.0 -> pure cost · 0.5 -> balanced. Carbon and
+    price are on different scales, so each is min-max normalised across the
+    forecast horizon before blending. The chosen window is the one with the
+    lowest blended score within the deadline; urgent jobs run immediately.
+
+    Parameters
+    ----------
+    ci_forecast    : hourly carbon intensity (gCO2/kWh) over the horizon
+    price_forecast : hourly electricity price ($/MWh) over the horizon
+                     (see src/models/pricing.py for the representative ToU model)
+    job            : the Job to schedule
+    weight         : carbon-vs-cost weight in [0, 1]
+
+    Returns
+    -------
+    dict with the chosen start hour, the CI and price at that window versus
+    running now, and the carbon (kg CO2) and cost ($) saved.
+    """
+    ci = np.asarray(ci_forecast, float)
+    price = np.asarray(price_forecast, float)
+    d = job.duration_h
+    energy_kwh = job.nodes * power_per_node * d
+    energy_mwh = energy_kwh / 1000.0
+    run_ci = float(np.mean(ci[:d]))
+    run_pr = float(np.mean(price[:d]))
+
+    def result(t: int) -> Dict:
+        sci = float(np.mean(ci[t:t + d]))
+        spr = float(np.mean(price[t:t + d]))
+        return {
+            "start_hour": t,
+            "sched_ci": round(sci, 1), "sched_price": round(spr, 1),
+            "run_now_ci": round(run_ci, 1), "run_now_price": round(run_pr, 1),
+            "carbon_saved_kg": round(energy_kwh * (run_ci - sci) / 1000.0, 2),
+            "cost_saved_usd": round(energy_mwh * (run_pr - spr), 2),
+        }
+
+    if job.priority == "urgent":
+        return result(0)
+    latest = min(job.deadline_h, len(ci)) - d
+    if latest < 0:
+        return result(0)
+
+    def _norm(a: np.ndarray) -> np.ndarray:
+        rng = a.max() - a.min()
+        return (a - a.min()) / rng if rng > 1e-9 else np.zeros_like(a)
+
+    ci_n, pr_n = _norm(ci), _norm(price)
+    best_t, best_score = 0, float("inf")
+    for t in range(latest + 1):
+        score = (weight * float(np.mean(ci_n[t:t + d]))
+                 + (1 - weight) * float(np.mean(pr_n[t:t + d])))
+        if score < best_score:
+            best_score, best_t = score, t
+    return result(best_t)

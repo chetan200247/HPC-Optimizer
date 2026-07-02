@@ -49,27 +49,55 @@ def load():
 
 kpis, integ, hourly, monthly, fuel, window = load()
 CI = window["ci"].values  # representative 48h CI forecast
+# Representative Time-of-Use electricity price ($/MWh); modelled, see src/models/pricing.py
+PRICE = window["price"].values if "price" in window.columns else np.full(len(CI), 40.0)
 
 
-# ── Inline greedy scheduler (numpy only) ──────────────────────────────────────
+# ── Inline joint carbon + cost scheduler (numpy only) ─────────────────────────
 
-def greedy_schedule(ci, nodes, duration, deadline, priority,
-                    power_per_node=1.2, total_nodes=4626):
-    """Return (start_hour, scheduled_ci, run_now_ci, carbon_saved_kg)."""
-    energy = nodes * power_per_node * duration          # kWh
-    run_now_ci = float(np.mean(ci[:duration]))
+def joint_schedule(ci, price, nodes, duration, deadline, priority, weight,
+                   power_per_node=1.2):
+    """
+    Schedule a job optimising a weighted blend of carbon and cost.
+
+    weight = 1.0 → pure carbon · 0.0 → pure cost · 0.5 → balanced.
+    Carbon and price are on different scales, so each is normalised to [0, 1]
+    across the forecast horizon before blending.
+
+    Returns a dict with the chosen start hour, the CI and price at that window
+    versus running now, and the carbon (kg CO₂) and cost ($) saved.
+    """
+    energy_kwh = nodes * power_per_node * duration
+    energy_mwh = energy_kwh / 1000.0
+    run_ci = float(np.mean(ci[:duration]))
+    run_pr = float(np.mean(price[:duration]))
+
+    def result(t):
+        sci = float(np.mean(ci[t:t + duration]))
+        spr = float(np.mean(price[t:t + duration]))
+        return dict(start=t, sched_ci=sci, sched_price=spr,
+                    run_ci=run_ci, run_pr=run_pr,
+                    carbon_saved_kg=energy_kwh * (run_ci - sci) / 1000.0,
+                    cost_saved_usd=energy_mwh * (run_pr - spr))
+
     if priority == "Urgent (run now)":
-        return 0, run_now_ci, run_now_ci, 0.0
+        return result(0)
     latest = min(deadline, len(ci)) - duration
     if latest < 0:
-        return 0, run_now_ci, run_now_ci, 0.0
-    best_t, best_ci = 0, 1e9
-    for t in range(0, latest + 1):
-        m = float(np.mean(ci[t:t + duration]))
-        if m < best_ci:
-            best_ci, best_t = m, t
-    saved_kg = energy * (run_now_ci - best_ci) / 1000   # g → kg
-    return best_t, best_ci, run_now_ci, max(saved_kg, 0.0)
+        return result(0)
+
+    def norm(a):
+        a = np.asarray(a, float); rng = a.max() - a.min()
+        return (a - a.min()) / rng if rng > 1e-9 else np.zeros_like(a)
+
+    ci_n, pr_n = norm(ci), norm(price)
+    best_t, best_score = 0, 1e9
+    for t in range(latest + 1):
+        score = (weight * float(np.mean(ci_n[t:t + duration]))
+                 + (1 - weight) * float(np.mean(pr_n[t:t + duration])))
+        if score < best_score:
+            best_score, best_t = score, t
+    return result(best_t)
 
 
 def zone(ci_value):
@@ -108,29 +136,33 @@ with tab_ops:
     c3.metric("Active Nodes", f"{active_nodes:,}", f"of {kpis['total_nodes']:,}")
     c4.metric("Mean Utilisation", f"{kpis['mean_utilisation_pct']:.0f}%", "cluster load")
 
-    st.markdown("##### 48-Hour Carbon Intensity Forecast")
+    st.markdown("##### 48-Hour Forecast — Carbon Intensity & Electricity Price")
     fig = go.Figure()
+    # Carbon intensity (left axis)
     fig.add_trace(go.Scatter(
         x=list(range(len(CI))), y=CI, mode="lines",
-        line=dict(color=BLUE, width=3), name="Forecast CI",
+        line=dict(color=BLUE, width=3), name="Carbon intensity (gCO₂/kWh)",
         fill="tozeroy", fillcolor="rgba(21,101,192,0.08)"))
-    # zone bands
-    fig.add_hrect(y0=0, y1=250, fillcolor=GREEN, opacity=0.06, line_width=0,
-                  annotation_text="Green <250", annotation_position="top left")
-    fig.add_hrect(y0=250, y1=350, fillcolor=AMBER, opacity=0.06, line_width=0,
-                  annotation_text="Amber 250–350", annotation_position="top left")
-    fig.add_hrect(y0=350, y1=max(CI.max()*1.05, 400), fillcolor=RED, opacity=0.06,
-                  line_width=0, annotation_text="Red >350", annotation_position="top left")
+    # Electricity price (right axis)
+    fig.add_trace(go.Scatter(
+        x=list(range(len(PRICE))), y=PRICE, mode="lines", yaxis="y2",
+        line=dict(color=ORANGE, width=2, dash="dot"), name="Electricity price ($/MWh)"))
     fig.add_vline(x=low_hour, line=dict(color=GREEN, dash="dash"),
                   annotation_text=f"cleanest +{low_hour}h")
-    fig.update_layout(height=340, margin=dict(l=10, r=10, t=10, b=10),
-                      xaxis_title="Hours ahead", yaxis_title="gCO₂/kWh",
-                      showlegend=False, plot_bgcolor="white")
+    fig.update_layout(
+        height=340, margin=dict(l=10, r=10, t=10, b=10),
+        xaxis_title="Hours ahead", yaxis=dict(title="gCO₂/kWh"),
+        yaxis2=dict(title="$/MWh", overlaying="y", side="right", showgrid=False),
+        legend=dict(orientation="h", y=1.12), plot_bgcolor="white")
     st.plotly_chart(fig, use_container_width=True)
+    st.caption("Electricity price is a representative Time-of-Use tariff (cheap overnight, "
+               "expensive on-peak) — see src/models/pricing.py. Clean hours and cheap hours "
+               "often but not always coincide, which is what the optimiser balances.")
 
-    # ── Interactive job scheduler ─────────────────────────────────────────────
+    # ── Interactive job scheduler (carbon + cost co-optimisation) ─────────────
     st.markdown("##### 🗓️  Schedule a Job")
-    st.caption("Enter your workload and the optimiser returns the lowest-carbon start time within your deadline.")
+    st.caption("Enter your workload, set the carbon-vs-cost balance, and the optimiser "
+               "returns the best start time within your deadline.")
     jc1, jc2, jc3, jc4 = st.columns(4)
     nodes = jc1.number_input("Nodes required", 1, kpis["total_nodes"], 2000, step=100)
     duration = jc2.number_input("Duration (hours)", 1, 24, 4)
@@ -138,24 +170,38 @@ with tab_ops:
                              format_func=lambda h: f"within {h} hours")
     priority = jc4.selectbox("Priority", ["Flexible", "Urgent (run now)"])
 
-    start, sched_ci, run_now_ci, saved = greedy_schedule(
-        CI, nodes, duration, deadline, priority)
+    carbon_priority = st.slider(
+        "Optimise for  —  ⬅ Cost  ·  Carbon ➡", 0, 100, 70, step=5,
+        help="0 = minimise electricity cost only · 100 = minimise carbon only · "
+             "in between = balance the two.")
+    weight = carbon_priority / 100.0
+    st.caption(f"Weighting: **{carbon_priority}% carbon / {100-carbon_priority}% cost**")
+
+    res = joint_schedule(CI, PRICE, nodes, duration, deadline, priority, weight)
+    saved_kg = res["carbon_saved_kg"]; saved_usd = res["cost_saved_usd"]
 
     r1, r2, r3 = st.columns(3)
-    r1.metric("Recommended Start", f"+{start} h" if start else "Now",
-              f"CI {sched_ci:.0f} gCO₂/kWh")
-    r2.metric("vs Running Now", f"CI {run_now_ci:.0f} gCO₂/kWh",
-              f"{run_now_ci - sched_ci:.0f} cleaner", delta_color="inverse")
-    r3.metric("Estimated Carbon Saved", f"{saved:,.1f} kg CO₂",
-              f"{(saved*1000/(nodes*1.2*duration*run_now_ci)*100) if run_now_ci else 0:.1f}%")
+    r1.metric("Recommended Start", f"+{res['start']} h" if res["start"] else "Now",
+              f"CI {res['sched_ci']:.0f} · ${res['sched_price']:.0f}/MWh")
+    r2.metric("Carbon Saved", f"{saved_kg:,.1f} kg CO₂",
+              f"{res['run_ci'] - res['sched_ci']:+.0f} gCO₂/kWh vs now", delta_color="normal")
+    r3.metric("Cost Saved", f"${saved_usd:,.2f}",
+              f"{res['run_pr'] - res['sched_price']:+.0f} $/MWh vs now", delta_color="normal")
 
     if priority == "Urgent (run now)":
         st.info("⚡ Urgent jobs run immediately and are never deferred.")
-    elif saved > 0:
-        st.success(f"✅ Defer this job by **{start} hours** to run in a cleaner window "
-                   f"and save **{saved:,.1f} kg CO₂** with no change to the computation.")
+    elif res["start"] == 0:
+        st.warning("This job is already in the best available window for your chosen balance — run now.")
     else:
-        st.warning("This job is already in the cleanest available window — run now.")
+        bits = []
+        if saved_kg > 0.05: bits.append(f"**{saved_kg:,.1f} kg CO₂**")
+        if saved_usd > 0.005: bits.append(f"**${saved_usd:,.2f}**")
+        gain = " and ".join(bits) if bits else "carbon/cost"
+        st.success(f"✅ Defer this job by **{res['start']} hours** to save {gain}, "
+                   f"with no change to the computation.")
+        if saved_kg < 0 or saved_usd < 0:
+            st.caption("⚖️  Note: with this balance one metric is traded off against the other — "
+                       "cleanest and cheapest hours do not always coincide. Move the slider to re-weight.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

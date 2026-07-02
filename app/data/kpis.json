@@ -3,12 +3,12 @@
   "ci_min": 75.7,
   "ci_max": 499.9,
   "low_carbon_share": 56.3,
-  "total_baseline_kg_5d": 145807.6,
-  "total_saved_kg_5d": 4007.6,
-  "reduction_pct": 2.75,
-  "annual_unconstrained_tco2": 293,
-  "annual_ceiling_tco2": 106,
-  "annual_realistic_tco2": 51,
+  "total_baseline_kg_5d": 157552.1,
+  "total_saved_kg_5d": 4296.4,
+  "reduction_pct": 2.73,
+  "annual_unconstrained_tco2": 314,
+  "annual_ceiling_tco2": 87,
+  "annual_realistic_tco2": 34,
   "total_nodes": 4626,
-  "mean_utilisation_pct": 68.7
+  "mean_utilisation_pct": 76.5
 }
