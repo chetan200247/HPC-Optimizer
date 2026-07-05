@@ -517,7 +517,19 @@ bullets([
     "honest 'projection' framing of every annual figure.",
 ])
 
-h2("6.4  The integrated dataset")
+h2("6.4  Robustness of the hourly active/idle classification")
+body("A node can be active for part of an hour and idle for the rest, so classifying it from its "
+     "hourly-mean GPU power is an approximation of a sub-hourly mix. This was checked directly. "
+     "On the January 2020 file, of 111,024 node-hours, 68.3% were active for the full hour, 7.8% "
+     "idle for the full hour, and <b>23.9% were mixed</b> (both active and idle minutes). However, "
+     "recomputing the day's total active energy with an exact per-minute classification changed "
+     "the total by only <b>0.8%</b> versus the hourly-mean method. The distortion is small because "
+     "most mixed hours are lopsided, over- and under-counts cancel across 4,626 nodes, and "
+     "boundary cases carry little energy. This 0.8% is far below the uncertainty already carried "
+     "by the 30% flexibility assumption (a ±10-point band), so the hourly-mean classifier is a "
+     "sound simplification; the exact per-minute method remains available as a refinement.")
+
+h2("6.5  The integrated dataset")
 body("Integration yields three clean, fully validated, null-free outputs: a 120-row demand "
      "table, a 35,064-row supply table, and a 120-row integrated table carrying baseline and "
      "optimised carbon at all three flexibility assumptions. These feed every subsequent "
@@ -657,17 +669,33 @@ body("Before the trained models, two naive baselines were computed. The seasonal
      "justify its complexity.")
 
 h2("8.5  Model results")
+body("Seven models were benchmarked in total: the naive baseline, SARIMA, Prophet and XGBoost, "
+     "plus three common machine-learning regressors added to test whether XGBoost's win holds up "
+     "— Linear Regression, Random Forest and k-Nearest Neighbours. All were run through the "
+     "identical rolling-origin evaluation.")
 table([
-    ["Model", "MAE", "RMSE", "MAPE", "vs naive"],
-    ["XGBoost (selected)", "17.95", "23.80", "6.80%", "−6.8%"],
-    ["Naive (24h)", "19.27", "25.41", "7.35%", "baseline"],
-    ["SARIMA", "20.60", "26.36", "7.95%", "+6.9%"],
-    ["Prophet", "30.39", "37.94", "11.48%", "+57.7%"],
-], col_widths=[5*cm, 2.6*cm, 2.6*cm, 2.6*cm, 2.6*cm])
+    ["Model", "MAE", "RMSE", "MAPE", "Beats naive?"],
+    ["XGBoost (selected)", "17.95", "23.80", "6.80%", "Yes"],
+    ["Random Forest", "19.16", "25.43", "7.19%", "Yes (just)"],
+    ["Naive (24h)", "19.27", "25.41", "7.35%", "— baseline"],
+    ["SARIMA", "20.60", "26.36", "7.95%", "No"],
+    ["k-Nearest Neighbours", "23.46", "29.49", "8.78%", "No"],
+    ["Prophet", "30.39", "37.94", "11.48%", "No"],
+    ["Linear Regression", "52.63", "68.19", "19.75%", "No"],
+], col_widths=[5.2*cm, 2.4*cm, 2.4*cm, 2.4*cm, 3*cm])
 
-figure("fc_metric_comparison.png",
-       "Figure 8.2  Model comparison across MAE, RMSE and MAPE. XGBoost is the only model to "
-       "beat the naive baseline on all three metrics.")
+figure("fc_comparison_all.png",
+       "Figure 8.2  Full seven-model comparison (MAE, rolling-origin 48-hour evaluation). Only "
+       "XGBoost and Random Forest — both tree ensembles — beat the naive baseline.")
+
+body("The extended benchmark reinforces the selection. <b>Only two of seven models beat the "
+     "naive baseline, and both are tree ensembles</b> — confirming that family is the right "
+     "choice, with gradient boosting (XGBoost) edging out bagging (Random Forest, MAE 19.16). "
+     "The common alternatives behaved instructively: <b>Linear Regression failed badly</b> "
+     "(MAE 52.63) because, over 48 recursive steps, a linear model extrapolates and compounds "
+     "its errors; <b>k-NN was mid-pack</b> (23.46), hampered by the curse of dimensionality in "
+     "a 27-feature space. That five of six trained models fail to clear the naive baseline "
+     "underlines how strongly daily-periodic the TVA grid is.")
 
 h2("8.6  What worked, what did not, and why")
 h3("XGBoost — selected")
@@ -1002,6 +1030,36 @@ body("An important honesty point governs this feature: <b>carbon-optimal is not 
      "choose — prioritise carbon, prioritise cost, or balance the two — rather than hiding it. "
      "This turns the tool from a carbon-only utility into a genuine operational decision aid, "
      "while the honest caveat keeps it from over-claiming an automatic bill reduction.")
+
+h2("12.5  Cost–carbon trade-off and ROI")
+body("To quantify the financial dimension, the load-shifting optimiser was swept across the full "
+     "carbon-versus-cost weighting, recording for each setting the annual carbon saved and the "
+     "annual electricity cost saved. This traces a Pareto trade-off frontier (Figure 12.1), with "
+     "carbon then monetised at roughly $85/tCO₂ (EU ETS level) to give a single annual benefit.")
+table([
+    ["Setting", "Carbon (tCO₂/yr)", "Electricity ($/yr)", "Total benefit ($/yr)"],
+    ["Pure cost (w=0)", "23.9", "$71,710", "$73,742"],
+    ["Balanced (w=0.5)", "57.7", "$64,008", "$68,917"],
+    ["Pure carbon (w=1)", "87.5", "−$4,837", "$2,597"],
+], col_widths=[4*cm, 3.6*cm, 3.9*cm, 4*cm])
+figure("cost_carbon_pareto.png",
+       "Figure 12.1  Cost-versus-carbon trade-off frontier. As the weighting moves from cost to "
+       "carbon, the recommended schedule trades electricity savings for emissions savings; the "
+       "flat left region is a 'free-carbon' zone where both are captured at once.")
+body("Three findings stand out. First, in money terms the <b>electricity cost savings (up to "
+     "~$72,000/yr) dwarf the monetised carbon (~$2,000–7,400/yr) by a factor of ten to twenty-"
+     "five</b>: the financial case rests on the bill, with carbon reduction as a valuable "
+     "co-benefit. Second, there is a <b>'free-carbon' region</b> — at low carbon weight the full "
+     "cost saving is captured together with about 45 tCO₂/yr, because cheap off-peak hours are "
+     "often also cleaner. Third, <b>chasing maximum carbon can cost money</b> (pure carbon loses "
+     "~$4,800/yr on the bill by pushing jobs into expensive on-peak hours), which is exactly the "
+     "trade-off the slider exposes. Because the intervention is a software change costing "
+     "essentially nothing, an annual benefit of tens of thousands of dollars implies effectively "
+     "immediate payback — carbon-aware scheduling here is a <b>negative-cost abatement measure</b>, "
+     "reducing emissions while being paid to do so. A structural bonus is that the ToU tariff is "
+     "known in advance with no forecast error, so the cost savings are more reliably capturable "
+     "than the forecast-dependent carbon savings. The dollar magnitudes scale with the modelled "
+     "tariff and are illustrative; the shape of the trade-off does not.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CH 13 — LIMITATIONS

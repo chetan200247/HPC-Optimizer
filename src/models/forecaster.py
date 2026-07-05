@@ -379,3 +379,78 @@ class LSTMForecaster:
             preds.append(yhat)
             window.append(yhat)
         return self._unscale(_np.array(preds))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Generic scikit-learn forecaster (Linear Regression, Random Forest, kNN, …)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class SklearnForecaster:
+    """
+    Wrap any scikit-learn regressor as a recursive multi-step CI forecaster.
+
+    Uses the same engineered features and recursive forecasting strategy as the
+    XGBoost model, so the comparison is like-for-like. An optional StandardScaler
+    is applied for distance-based models (kNN) that require feature scaling.
+    """
+
+    def __init__(self, estimator, name: str, scale: bool = False):
+        self._estimator = estimator
+        self.name = name
+        self._scale = scale
+        self._scaler = None
+        self._model = None
+        self._feat_cols = None
+
+    def fit(self, train_df: pd.DataFrame) -> "SklearnForecaster":
+        self._feat_cols = get_feature_columns(train_df)
+        data = train_df.dropna(subset=self._feat_cols + [TARGET])
+        X = data[self._feat_cols].values
+        y = data[TARGET].values
+        if self._scale:
+            from sklearn.preprocessing import StandardScaler
+            self._scaler = StandardScaler().fit(X)
+            X = self._scaler.transform(X)
+        logger.info(f"  {self.name} fitting on {len(X):,} rows × {len(self._feat_cols)} features …")
+        self._model = self._estimator.fit(X, y)
+        return self
+
+    def forecast(self, history_df: pd.DataFrame, horizon: int = 48) -> np.ndarray:
+        ci = list(history_df[TARGET].values)
+        last_row = history_df.iloc[-1]
+        origin_ts = history_df["datetime"].iloc[-1]
+        fuel_feats = {c: last_row[c] for c in
+                      ["nuc_share_lag_24h", "col_share_lag_24h", "ng_share_lag_24h"]
+                      if c in history_df.columns}
+        preds = []
+        for h in range(1, horizon + 1):
+            ts = origin_ts + pd.Timedelta(hours=h)
+            feat = {}
+            for lag in LAG_HOURS:
+                idx = len(ci) - lag
+                feat[f"ci_lag_{lag}h"] = ci[idx] if idx >= 0 else ci[0]
+            recent = np.array(ci[-168:])
+            feat["ci_roll_mean_6h"]  = np.mean(recent[-6:])
+            feat["ci_roll_std_6h"]   = np.std(recent[-6:], ddof=1) if len(recent) >= 2 else 0
+            feat["ci_roll_std_24h"]  = np.std(recent[-24:], ddof=1) if len(recent) >= 2 else 0
+            feat["ci_roll_std_168h"] = np.std(recent, ddof=1) if len(recent) >= 2 else 0
+            feat["ci_rolling_24h"]   = np.mean(recent[-24:])
+            feat["ci_rolling_7d"]    = np.mean(recent)
+            feat["hour_of_day"] = ts.hour
+            feat["day_of_week"] = ts.dayofweek
+            feat["month"]       = ts.month
+            feat["is_weekend"]  = int(ts.dayofweek >= 5)
+            feat["hour_sin"]  = np.sin(2 * np.pi * ts.hour / 24)
+            feat["hour_cos"]  = np.cos(2 * np.pi * ts.hour / 24)
+            feat["dow_sin"]   = np.sin(2 * np.pi * ts.dayofweek / 7)
+            feat["dow_cos"]   = np.cos(2 * np.pi * ts.dayofweek / 7)
+            feat["month_sin"] = np.sin(2 * np.pi * ts.month / 12)
+            feat["month_cos"] = np.cos(2 * np.pi * ts.month / 12)
+            feat.update(fuel_feats)
+            x = pd.DataFrame([feat])[self._feat_cols].values
+            if self._scaler is not None:
+                x = self._scaler.transform(x)
+            yhat = float(self._model.predict(x)[0])
+            preds.append(yhat)
+            ci.append(yhat)
+        return np.array(preds)
