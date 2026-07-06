@@ -378,9 +378,9 @@ if st.session_state.page == "ops":
         if "queue" not in st.session_state:
             st.session_state.queue = pd.DataFrame([
                 {"Job Name": "Weather Simulations", "Nodes": 2000, "Duration (h)": 4,
-                 "Deadline (h)": 12, "Priority": "Flexible"},
+                 "Deadline": NOW + pd.Timedelta(hours=12), "Priority": "Flexible"},
                 {"Job Name": "ML Model Training", "Nodes": 2343, "Duration (h)": 24,
-                 "Deadline (h)": 48, "Priority": "Urgent (run now)"},
+                 "Deadline": NOW + pd.Timedelta(hours=48), "Priority": "Urgent (run now)"},
             ])
 
         edited = st.data_editor(
@@ -391,20 +391,26 @@ if st.session_state.page == "ops":
                 "Nodes": st.column_config.NumberColumn("Nodes (required)", min_value=1,
                                                        max_value=kpis["total_nodes"], step=100),
                 "Duration (h)": st.column_config.NumberColumn(min_value=1, max_value=24, step=1),
-                "Deadline (h)": st.column_config.NumberColumn("Deadline (h)", min_value=1,
-                                                              max_value=48, step=1,
-                                                              help="Must finish within this many hours"),
+                "Deadline": st.column_config.DatetimeColumn(
+                    "Deadline", format="DD MMM YYYY, hh:mm a", step=3600,
+                    help="Date & time the job must finish by. Optimised within the next "
+                         "48 h (the forecast horizon); later deadlines are treated as 48 h."),
                 "Priority": st.column_config.SelectboxColumn(
                     options=["Flexible", "Urgent (run now)"], required=True),
             })
-        st.caption("Use the **＋** on the last row to add another job, or the 🗑 to remove one.")
+        st.caption("Use the **＋** on the last row to add another job, or the 🗑 to remove one.  ·  "
+                   "Deadlines are optimised within the next **48 h** (forecast horizon).")
 
-        # validate rows
+        # validate rows — convert the datetime deadline to hours-from-now
         jobs = []
         for _, r in edited.iterrows():
             try:
-                n = int(r["Nodes"]); d = int(r["Duration (h)"]); dl = int(r["Deadline (h)"])
+                n = int(r["Nodes"]); d = int(r["Duration (h)"])
                 p = str(r["Priority"]); nm = str(r["Job Name"]) if pd.notna(r["Job Name"]) else ""
+                if pd.isna(r["Deadline"]):
+                    continue
+                dl_hours = int(np.ceil((pd.to_datetime(r["Deadline"]) - NOW).total_seconds() / 3600))
+                dl = max(1, min(dl_hours, len(CI)))   # cap at the 48h forecast horizon
             except (TypeError, ValueError):
                 continue
             if n >= 1 and d >= 1 and dl >= d:
