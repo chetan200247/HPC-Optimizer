@@ -115,10 +115,13 @@ def load():
 kpis, integ, hourly, monthly, fuel, window = load()
 CI = window["ci"].values
 PRICE = window["price"].values if "price" in window.columns else np.full(len(CI), 40.0)
-try:
-    BASE = pd.to_datetime(window["datetime"]).iloc[0]
-except Exception:
-    BASE = pd.Timestamp("2025-05-20 10:30")
+
+# Live "data as of" anchor — set on first load, re-stamped by the Refresh button.
+# The 48h forecast horizon is anchored to this timestamp, so clock times (next
+# green window, recommended start) read relative to the moment of refresh.
+if "last_refresh" not in st.session_state:
+    st.session_state.last_refresh = pd.Timestamp.now()
+NOW = st.session_state.last_refresh
 
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
@@ -248,9 +251,10 @@ if st.session_state.page == "ops":
             "<div class='page-sub'>Real-time overview of grid conditions, forecasts and job scheduling</div>",
             unsafe_allow_html=True)
     with h2:
-        st.markdown(f"<div class='fresh'><span class='fresh-dot'></span>Data as of {fmt_stamp(BASE)}</div>",
+        st.markdown(f"<div class='fresh'><span class='fresh-dot'></span>Data as of {fmt_stamp(NOW)}</div>",
                     unsafe_allow_html=True)
         if st.button("🔄 Refresh", key="refresh"):
+            st.session_state.last_refresh = pd.Timestamp.now()
             st.cache_data.clear(); st.rerun()
 
     st.write("")
@@ -347,7 +351,7 @@ if st.session_state.page == "ops":
                     start_html = "<b style='color:#b45309;'>Run Now</b>" if urg \
                         else "<b style='color:#15803d;'>Now</b>"
                 else:
-                    t = BASE + pd.Timedelta(hours=r["start"])
+                    t = NOW + pd.Timedelta(hours=r["start"])
                     start_html = f"<b style='color:#15803d;'>{fmt_clock(t)}</b> (+{r['start']}h)"
                 status = ("<span class='status-dot' style='background:#f59e0b;'></span>Running" if urg
                           else "<span class='status-dot' style='background:#22c55e;'></span>Scheduled")
@@ -386,7 +390,7 @@ if st.session_state.page == "ops":
     for h in range(green_idx, len(CI)):
         if CI[h] < thr: gw_dur += 1
         else: break
-    gw_time = BASE + pd.Timedelta(hours=green_idx)
+    gw_time = NOW + pd.Timedelta(hours=green_idx)
 
     active = int(kpis["total_nodes"] * kpis["mean_utilisation_pct"] / 100)
     idle = kpis["total_nodes"] - active
