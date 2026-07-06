@@ -54,7 +54,7 @@ AMBER   = "#F9A825"
 
 st.markdown("""
 <style>
-  .block-container {padding-top: 1.4rem; padding-bottom: 2rem; max-width: 1560px;}
+  .block-container {padding-top: 3rem; padding-bottom: 2rem; max-width: 1560px;}
   [data-testid="stAppViewContainer"] {background: #f5f8f6;}
 
   /* Sidebar — dark green */
@@ -72,7 +72,8 @@ st.markdown("""
   [data-testid="stAppViewContainer"] button[kind="primary"] {background:#16a34a; border-color:#16a34a;}
 
   /* Page header */
-  .page-title {font-size:1.9rem; font-weight:800; color:#12261c; line-height:1.1;}
+  .page-title {font-size:1.9rem; font-weight:800; color:#12261c; line-height:1.25;
+               padding-top:2px;}
   .page-sub {font-size:0.95rem; color:#5b6b62; margin-top:2px;}
   .fresh {text-align:right; font-size:0.82rem; color:#5b6b62; font-weight:600;}
   .fresh-dot {height:8px; width:8px; border-radius:50%; background:#22c55e;
