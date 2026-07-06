@@ -80,7 +80,11 @@ st.markdown("""
 
   /* Metric cards */
   .metric-card {background:#fff; border:1px solid #e6ebe8; border-radius:14px;
-                padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.04); height:100%;}
+                padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.04);
+                height:100%; min-height:132px;}
+  .section-h {font-size:1.15rem; font-weight:800; color:#12261c; margin:2px 0 12px 0;}
+  .section-h .sub {font-weight:500; color:#7a8a80; font-size:0.9rem;}
+  .mc-info {cursor:help; color:#b3bdb6; font-size:0.85rem; margin-left:4px;}
   .mc-label {font-size:0.82rem; color:#5b6b62; font-weight:600;
              display:flex; gap:6px; align-items:center;}
   .mc-value {font-weight:800; color:#12261c; line-height:1.1; margin-top:8px;}
@@ -289,11 +293,12 @@ def schedule_queue(jobs, ci, price, weight, total_nodes, power_per_node=1.2):
 # ── HTML card builder ─────────────────────────────────────────────────────────
 
 def card(label, value, unit="", sub="", badge=None, badge_cls="badge-green",
-         icon="", value_size="1.9rem"):
+         icon="", value_size="1.9rem", info=""):
     b = f'<div class="badge {badge_cls}">{badge}</div>' if badge else ""
     s = f'<div class="mc-sub">{sub}</div>' if sub else ""
     u = f'<span class="mc-unit">{unit}</span>' if unit else ""
-    return (f'<div class="metric-card"><div class="mc-label">{icon} {label}</div>'
+    i = f'<span class="mc-info" title="{info}">ⓘ</span>' if info else ""
+    return (f'<div class="metric-card"><div class="mc-label">{icon} {label}{i}</div>'
             f'<div class="mc-value" style="font-size:{value_size};">{value} {u}</div>'
             f'{b}{s}</div>')
 
@@ -337,8 +342,8 @@ st.sidebar.markdown(
 
 if st.session_state.page == "ops":
 
-    # ── Header ────────────────────────────────────────────────────────────────
-    h1, h2 = st.columns([6, 3])
+    # ── Header (title · freshness+reading · refresh) ──────────────────────────
+    h1, h2, h3 = st.columns([6, 3, 1])
     with h1:
         st.markdown(
             "<div class='page-title'>Operations Manager</div>"
@@ -349,33 +354,25 @@ if st.session_state.page == "ops":
             src = "<span style='color:#15803d;font-weight:700;'>Live · EIA</span>"; dot = "background:#22c55e;"
         else:
             src = "<span style='color:#b45309;font-weight:700;'>Demo data</span>"; dot = "background:#f59e0b;"
+        reading = (f"<div style='text-align:right;font-size:0.74rem;color:#9aa5a0;margin-top:2px;'>"
+                   f"Latest EIA reading: {LATEST_TS} UTC</div>") if (DATA_SOURCE == "live" and LATEST_TS) else ""
         st.markdown(
             f"<div class='fresh'><span class='fresh-dot' style='{dot}'></span>"
-            f"Data as of {fmt_stamp(NOW)} · {src}</div>", unsafe_allow_html=True)
-        if st.button("🔄 Refresh", key="refresh"):
+            f"Data as of {fmt_stamp(NOW)} · {src}</div>{reading}", unsafe_allow_html=True)
+    with h3:
+        if st.button("🔄 Refresh", key="refresh", use_container_width=True):
             st.session_state.last_refresh = pd.Timestamp.now()
             st.cache_data.clear(); st.rerun()
-        if DATA_SOURCE == "live" and LATEST_TS:
-            st.caption(f"Latest EIA reading: {LATEST_TS} UTC")
 
     st.write("")
 
     # ══════════════════════════════════════════════════════════════════════════
-    #  SCHEDULE JOBS — the hero panel
+    #  SECTION 1 · SCHEDULE JOBS
     # ══════════════════════════════════════════════════════════════════════════
     with st.container(border=True):
-        t1, t2 = st.columns([5, 4])
-        with t1:
-            st.markdown("### 🗓️ Schedule Jobs")
-            st.caption("Add jobs to the queue. The system recommends the best start time to "
-                       "reduce carbon without violating deadlines.")
-        with t2:
-            opt = st.slider("Optimise for  —  🌿 Carbon  ⟷  Cost 💲", 0, 100, 20, step=5,
-                            format="%d%%",
-                            help="Slide left for more carbon savings, right for more cost savings.")
-            weight = (100 - opt) / 100.0   # carbon weight
-            st.caption(f"⬅ More carbon savings  ·  **{100-opt}% carbon / {opt}% cost**  ·  "
-                       f"More cost savings ➡")
+        st.markdown("<div class='section-h'>🗓️ Schedule Jobs</div>", unsafe_allow_html=True)
+        st.caption("Add jobs to the queue. The system recommends the best start time to "
+                   "reduce carbon without violating deadlines.")
 
         if "queue" not in st.session_state:
             st.session_state.queue = pd.DataFrame([
@@ -412,7 +409,24 @@ if st.session_state.page == "ops":
             if n >= 1 and d >= 1 and dl >= d:
                 jobs.append(dict(name=nm, nodes=n, duration=d, deadline=dl, priority=p))
 
-        # schedule
+        # ── Optimise-for slider (full width, below the table) ─────────────────
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+        s1, s2 = st.columns([1, 1])
+        s1.markdown("**Optimise for**  🌿 <span style='color:#15803d;font-weight:700;'>Carbon</span>",
+                    unsafe_allow_html=True)
+        s2.markdown("<div style='text-align:right;font-weight:700;'>Cost 💲</div>",
+                    unsafe_allow_html=True)
+        st.caption("Adjust the balance between carbon savings and cost savings.")
+        opt = st.slider("Optimise for", 0, 100, 20, step=5, format="%d%%",
+                        label_visibility="collapsed",
+                        help="Slide left for more carbon savings, right for more cost savings.")
+        weight = (100 - opt) / 100.0   # carbon weight
+        l1, l2 = st.columns([1, 1])
+        l1.caption("⬅ More carbon savings")
+        l2.markdown("<div style='text-align:right;color:#7a8a80;font-size:0.85rem;'>"
+                    "More cost savings ➡</div>", unsafe_allow_html=True)
+
+        # ── schedule ──────────────────────────────────────────────────────────
         if jobs:
             results, cap = schedule_queue(jobs, CI, PRICE, weight, kpis["total_nodes"])
         else:
@@ -428,23 +442,28 @@ if st.session_state.page == "ops":
         on_time = sum(1 for r in urgent if r["start"] == 0)
         on_time_rate = (on_time / len(urgent) * 100) if urgent else 100
 
-        # summary cards
-        st.write("")
-        m1, m2, m3 = st.columns(3)
+        # ── Potential Impact (4 summary cards) ────────────────────────────────
+        st.markdown("<div style='height:8px;'></div>"
+                    "<div class='section-h'>Potential Impact "
+                    "<span class='sub'>(Recommendations Summary)</span></div>", unsafe_allow_html=True)
+        m1, m2, m3, m4 = st.columns(4)
         m1.markdown(card("Total Carbon Saved", f"{tot_kg:,.0f}", "kg CO₂",
                          sub="<span class='up'>↑</span> vs run-now", icon="🌿"),
                     unsafe_allow_html=True)
         m2.markdown(card("Total Cost Saved", f"${tot_usd:,.0f}", "",
                          sub="<span class='up'>↑</span> vs run-now", icon="💲"),
                     unsafe_allow_html=True)
-        m3.markdown(card("Urgent On-Time Rate", f"{on_time_rate:.0f}%", "",
-                         sub=f"{on_time} of {len(urgent)} urgent jobs on time" if urgent
-                         else "no urgent jobs queued", icon="🛡️"),
-                    unsafe_allow_html=True)
+        m3.markdown(card("Avg / Max Wait", f"{avg_wait:.0f} / {max_wait} h", "",
+                         sub="Across flexible jobs", icon="⏱️"), unsafe_allow_html=True)
+        m4.markdown(card("Urgent On-Time Rate", f"{on_time} / {len(urgent)}" if urgent else "—", "",
+                         sub=f"<span class='up'>{on_time_rate:.0f}% on-time</span>" if urgent
+                         else "no urgent jobs", icon="🛡️"), unsafe_allow_html=True)
 
-        # recommended schedule table
+        # ── Recommended Schedule table ────────────────────────────────────────
         if results:
-            st.markdown("##### Recommended Schedule")
+            st.markdown("<div style='height:8px;'></div>"
+                        "<div class='section-h'>Recommended Schedule</div>", unsafe_allow_html=True)
+            st.caption("The system recommends the following start times for maximum benefit within constraints.")
             rows = ""
             for r in sorted(results, key=lambda r: r["idx"]):
                 urg = r["priority"].startswith("Urgent")
@@ -472,7 +491,7 @@ if st.session_state.page == "ops":
 
     st.write("")
 
-    # ── Grid status snapshot ──────────────────────────────────────────────────
+    # ── Grid status snapshot (compute) ────────────────────────────────────────
     current_ci = float(CI[0])
     if current_ci < 250:   z_cls, z_lab, z_sub = "badge-green", "Green", "Low carbon intensity"
     elif current_ci < 350: z_cls, z_lab, z_sub = "badge-amber", "Amber", "Moderate carbon intensity"
@@ -484,7 +503,6 @@ if st.session_state.page == "ops":
     elif price_now <= q2: p_tier, p_cls, p_lab = 2, "badge-amber", "Mid Tier"
     else:                 p_tier, p_cls, p_lab = 3, "badge-red", "High Tier"
 
-    # next green window
     thr = 250 if CI.min() < 250 else float(np.percentile(CI, 20))
     green_idx = int(np.argmax(CI < thr)) if (CI < thr).any() else int(CI.argmin())
     gw_dur = 0
@@ -497,71 +515,85 @@ if st.session_state.page == "ops":
     idle = kpis["total_nodes"] - active
     act_pct = round(kpis["mean_utilisation_pct"]); idle_pct = 100 - act_pct
 
-    left, right = st.columns([1.15, 1])
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SECTION 2 · GRID OVERVIEW & FORECAST
+    # ══════════════════════════════════════════════════════════════════════════
+    with st.container(border=True):
+        st.markdown("<div class='section-h'>Grid Overview &amp; Forecast</div>", unsafe_allow_html=True)
 
-    # ── 48-hour forecast (left, tall) ─────────────────────────────────────────
-    with left:
-        with st.container(border=True):
-            st.markdown("##### 48-Hour Forecast — Carbon Intensity & Electricity Price")
-            sigma = 0.05 + 0.005 * np.arange(len(CI))          # widening 95% band
-            upper, lower = CI * (1 + sigma), CI * (1 - sigma)
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=list(range(len(CI))), y=upper, mode="lines",
-                                     line=dict(width=0), hoverinfo="skip", showlegend=False))
-            fig.add_trace(go.Scatter(x=list(range(len(CI))), y=lower, mode="lines",
-                                     line=dict(width=0), fill="tonexty",
-                                     fillcolor="rgba(21,128,61,0.15)", hoverinfo="skip",
-                                     name="Confidence Band (95%)"))
-            fig.add_trace(go.Scatter(x=list(range(len(CI))), y=CI, mode="lines",
-                                     line=dict(color=GREEN, width=3),
-                                     name="Carbon Intensity (gCO₂/kWh)"))
-            fig.add_trace(go.Scatter(x=list(range(len(PRICE))), y=PRICE, mode="lines", yaxis="y2",
-                                     line=dict(color="#9aa5a0", width=1.5, dash="dash"),
-                                     name="Electricity Price ($/MWh)"))
-            fig.add_vline(x=green_idx, line=dict(color=GREEN, dash="dash"),
-                          annotation_text="Next green window", annotation_position="top")
-            fig.update_layout(
-                height=430, margin=dict(l=10, r=10, t=30, b=10),
-                xaxis=dict(title="Hours ahead", dtick=6),
-                yaxis=dict(title="gCO₂/kWh"),
-                yaxis2=dict(title="$/MWh", overlaying="y", side="right", showgrid=False),
-                legend=dict(orientation="h", y=1.12, x=0), plot_bgcolor="white")
-            st.plotly_chart(fig, use_container_width=True)
-
-    # ── Status cards (right) ──────────────────────────────────────────────────
-    with right:
-        a, b, c = st.columns(3)
+        a, b, c, d = st.columns(4)
         a.markdown(card("Current Grid CI", f"{current_ci:.0f}", "gCO₂/kWh",
-                        badge=z_lab, badge_cls=z_cls, sub=z_sub, icon="☁️",
-                        value_size="1.5rem"), unsafe_allow_html=True)
+                        badge=z_lab, badge_cls=z_cls, sub=z_sub, icon="☁️", value_size="1.7rem",
+                        info="Live TVA grid carbon intensity from the EIA API"),
+                   unsafe_allow_html=True)
         b.markdown(card("Electricity Price", f"${price_now:.2f}", "/MWh",
                         badge=p_lab, badge_cls=p_cls, sub=f"Price tier: {p_tier} of 3",
-                        icon="💷", value_size="1.5rem"), unsafe_allow_html=True)
+                        icon="💲", value_size="1.6rem",
+                        info="Representative Time-of-Use tariff (modelled)"),
+                   unsafe_allow_html=True)
         c.markdown(card("Next Green Window", fmt_clock(gw_time).split(", ")[1], "",
-                        sub=f"in {green_idx}h ({gw_dur}h window)", icon="🌱",
-                        value_size="1.35rem"), unsafe_allow_html=True)
-
-        st.write("")
-        d, e = st.columns([1, 1.4])
+                        sub=f"in {green_idx}h ({gw_dur}h window)", icon="🌱", value_size="1.5rem",
+                        info="Next sustained low-carbon period in the 48h forecast"),
+                   unsafe_allow_html=True)
         d.markdown(
-            "<div class='metric-card'><div class='mc-label'>🗄️ Cluster Capacity</div>"
-            "<div style='display:flex;gap:16px;margin-top:14px;'>"
+            "<div class='metric-card'><div class='mc-label'>🗄️ Cluster Capacity"
+            "<span class='mc-info' title='ORNL Summit — 5-day observed average utilisation (historical, not live)'>ⓘ</span></div>"
+            "<div style='display:flex;gap:12px;margin-top:12px;'>"
             f"<div><div class='tg-num'>{kpis['total_nodes']:,}</div><div class='tg-lbl'>Working</div></div>"
             f"<div><div class='tg-num' style='color:#15803d;'>{active:,}</div>"
             f"<div class='tg-lbl'>Active {act_pct}%</div></div>"
             f"<div><div class='tg-num'>{idle:,}</div><div class='tg-lbl'>Idle {idle_pct}%</div></div>"
-            "</div></div>", unsafe_allow_html=True)
-        e.markdown(
-            "<div class='metric-card'><div class='mc-label'>📊 Today at a Glance</div>"
-            "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px;'>"
-            f"<div><div class='tg-num'>{deferred}</div><div class='tg-lbl'>Jobs Deferred</div></div>"
-            f"<div><div class='tg-num'>{avg_wait:.0f} / {max_wait} h</div><div class='tg-lbl'>Avg / Max Wait</div></div>"
-            f"<div><div class='tg-num'>{on_time_rate:.0f}%</div><div class='tg-lbl'>Urgent On-Time</div></div>"
-            f"<div><div class='tg-num' style='color:#15803d;'>{tot_kg:,.0f}</div><div class='tg-lbl'>Carbon Saved (kg)</div></div>"
-            f"<div><div class='tg-num' style='color:#15803d;'>${tot_usd:,.0f}</div><div class='tg-lbl'>Cost Saved</div></div>"
-            "</div></div>", unsafe_allow_html=True)
+            "</div><div class='mc-sub'>ORNL Summit · 5-day observed average</div></div>",
+            unsafe_allow_html=True)
 
-    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:10px;'></div>"
+                    "<div class='section-h' style='font-size:1rem;'>48-Hour Forecast — "
+                    "Carbon Intensity &amp; Electricity Price</div>", unsafe_allow_html=True)
+        sigma = 0.05 + 0.005 * np.arange(len(CI))          # widening 95% band
+        upper, lower = CI * (1 + sigma), CI * (1 - sigma)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=list(range(len(CI))), y=upper, mode="lines",
+                                 line=dict(width=0), hoverinfo="skip", showlegend=False))
+        fig.add_trace(go.Scatter(x=list(range(len(CI))), y=lower, mode="lines",
+                                 line=dict(width=0), fill="tonexty",
+                                 fillcolor="rgba(21,128,61,0.15)", hoverinfo="skip",
+                                 name="Confidence Band (95%)"))
+        fig.add_trace(go.Scatter(x=list(range(len(CI))), y=CI, mode="lines",
+                                 line=dict(color=GREEN, width=3),
+                                 name="Carbon Intensity (gCO₂/kWh)"))
+        fig.add_trace(go.Scatter(x=list(range(len(PRICE))), y=PRICE, mode="lines", yaxis="y2",
+                                 line=dict(color="#9aa5a0", width=1.5, dash="dash"),
+                                 name="Electricity Price ($/MWh)"))
+        fig.add_vline(x=green_idx, line=dict(color=GREEN, dash="dash"),
+                      annotation_text="Next green window", annotation_position="top")
+        fig.update_layout(
+            height=380, margin=dict(l=10, r=10, t=30, b=10),
+            xaxis=dict(title="Hours ahead", dtick=6),
+            yaxis=dict(title="gCO₂/kWh"),
+            yaxis2=dict(title="$/MWh", overlaying="y", side="right", showgrid=False),
+            legend=dict(orientation="h", y=1.12, x=0), plot_bgcolor="white")
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.write("")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SECTION 3 · TODAY AT A GLANCE
+    # ══════════════════════════════════════════════════════════════════════════
+    with st.container(border=True):
+        st.markdown("<div class='section-h'>Today at a Glance</div>", unsafe_allow_html=True)
+        g1, g2, g3, g4, g5 = st.columns(5)
+        g1.markdown(card("Jobs Deferred Today", f"{deferred}", "",
+                         sub="<span class='up'>↑</span> vs yesterday", icon="🌿"), unsafe_allow_html=True)
+        g2.markdown(card("Avg Wait Time", f"{avg_wait:.0f} h", "",
+                         sub="Across flexible jobs", icon="⏱️"), unsafe_allow_html=True)
+        g3.markdown(card("Cumulative Carbon Saved", f"{tot_kg:,.0f}", "kg CO₂",
+                         sub="<span class='up'>↑</span> vs yesterday", icon="🌱"), unsafe_allow_html=True)
+        g4.markdown(card("Cumulative Cost Saved", f"${tot_usd:,.0f}", "",
+                         sub="<span class='up'>↑</span> vs yesterday", icon="💲"), unsafe_allow_html=True)
+        g5.markdown(card("Urgent On-Time Rate", f"{on_time_rate:.0f}%", "",
+                         sub=f"{on_time} of {len(urgent)} jobs completed on time" if urgent
+                         else "no urgent jobs", icon="🛡️"), unsafe_allow_html=True)
+
     st.caption("Confidence band and Time-of-Use electricity price are representative model outputs "
                "(see src/models/pricing.py). Clean and cheap hours often but not always coincide — "
                "the optimiser balances the two via the slider above.")
