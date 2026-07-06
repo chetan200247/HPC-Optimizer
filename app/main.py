@@ -378,9 +378,9 @@ if st.session_state.page == "ops":
         if "queue" not in st.session_state:
             st.session_state.queue = pd.DataFrame([
                 {"Job Name": "Weather Simulations", "Nodes": 2000, "Duration (h)": 4,
-                 "Deadline": NOW + pd.Timedelta(hours=12), "Priority": "Flexible"},
+                 "Deadline": NOW.floor("h") + pd.Timedelta(hours=12), "Priority": "Flexible"},
                 {"Job Name": "ML Model Training", "Nodes": 2343, "Duration (h)": 24,
-                 "Deadline": NOW + pd.Timedelta(hours=48), "Priority": "Urgent (run now)"},
+                 "Deadline": NOW.floor("h") + pd.Timedelta(hours=48), "Priority": "Urgent (run now)"},
             ])
 
         edited = st.data_editor(
@@ -392,9 +392,9 @@ if st.session_state.page == "ops":
                                                        max_value=kpis["total_nodes"], step=100),
                 "Duration (h)": st.column_config.NumberColumn(min_value=1, max_value=24, step=1),
                 "Deadline": st.column_config.DatetimeColumn(
-                    "Deadline", format="DD MMM YYYY, hh:mm a", step=3600,
-                    help="Date & time the job must finish by. Optimised within the next "
-                         "48 h (the forecast horizon); later deadlines are treated as 48 h."),
+                    "Deadline", format="h A, D MMM YYYY", step=3600,
+                    help="Date & hour the job must finish by (hourly precision). Optimised within "
+                         "the next 48 h (the forecast horizon); later deadlines are treated as 48 h."),
                 "Priority": st.column_config.SelectboxColumn(
                     options=["Flexible", "Urgent (run now)"], required=True),
             })
