@@ -352,7 +352,7 @@ if st.session_state.page == "ops":
             unsafe_allow_html=True)
     with h2:
         if DATA_SOURCE == "live":
-            src = "<span style='color:#15803d;font-weight:700;'>Live · TVA grid (via EIA API)</span>"; dot = "background:#22c55e;"
+            src = "<span style='color:#15803d;font-weight:700;'>Live · TVA grid</span>"; dot = "background:#22c55e;"
         else:
             src = "<span style='color:#b45309;font-weight:700;'>Demo data</span>"; dot = "background:#f59e0b;"
         reading = (f"<div style='text-align:right;font-size:0.74rem;color:#9aa5a0;margin-top:2px;'>"
