@@ -13,13 +13,21 @@ Run locally:   streamlit run app/main.py
 """
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import requests
 import streamlit as st
+
+try:                                  # optional: load .env for local runs
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 # ── Config & palette ──────────────────────────────────────────────────────────
 
@@ -112,9 +120,89 @@ def load():
     return kpis, integ, hourly, monthly, fuel, window
 
 
-kpis, integ, hourly, monthly, fuel, window = load()
-CI = window["ci"].values
-PRICE = window["price"].values if "price" in window.columns else np.full(len(CI), 40.0)
+# ── Live grid data via EIA API (with static fallback) ─────────────────────────
+
+EIA_URL = "https://api.eia.gov/v2/electricity/rto/fuel-type-data/data/"
+# IPCC AR5 lifecycle emission factors (gCO₂/kWh), matching config/settings.py
+EMISSION_FACTORS = {"COL": 1000, "NG": 450, "OIL": 800, "NUC": 0,
+                    "SUN": 0, "WAT": 0, "WND": 0, "OTH": 500}
+
+
+def _eia_key():
+    """API key from Streamlit secrets (deploy) or environment/.env (local)."""
+    try:
+        k = st.secrets.get("EIA_API_KEY", "")
+    except Exception:
+        k = ""
+    return k or os.getenv("EIA_API_KEY", "")
+
+
+def _tou_price(ts):
+    """Representative Time-of-Use tariff ($/MWh) by season and local hour."""
+    summer = ts.month in (6, 7, 8, 9)
+    h = ts.hour
+    tier = "off" if h < 7 else "peak" if 17 <= h < 22 else "shoulder"
+    return {"off": 28 if summer else 25, "shoulder": 52 if summer else 45,
+            "peak": 95 if summer else 75}[tier]
+
+
+def fetch_live_window(hours=48, timeout=10):
+    """
+    Pull the latest TVA hourly generation-by-fuel from the EIA API, convert it to
+    carbon intensity (gCO₂/kWh), and build a 48h forward window using a
+    daily-persistence profile (the documented scheduling driver). Prices are the
+    representative ToU tariff. Raises on any failure so the caller can fall back.
+    """
+    key = _eia_key()
+    if not key:
+        raise RuntimeError("EIA_API_KEY not configured")
+    end = pd.Timestamp.now(tz="UTC").tz_localize(None).floor("h")
+    start = end - pd.Timedelta(days=6)
+    params = {
+        "api_key": key, "frequency": "hourly", "data[0]": "value",
+        "facets[respondent][]": "TVA",
+        "start": start.strftime("%Y-%m-%dT%H"), "end": end.strftime("%Y-%m-%dT%H"),
+        "sort[0][column]": "period", "sort[0][direction]": "asc",
+        "offset": 0, "length": 5000,
+    }
+    r = requests.get(EIA_URL, params=params, timeout=timeout)
+    r.raise_for_status()
+    recs = r.json().get("response", {}).get("data", [])
+    if not recs:
+        raise RuntimeError("EIA returned no data")
+    df = pd.DataFrame(recs)
+    df["value"] = pd.to_numeric(df["value"], errors="coerce").fillna(0).clip(lower=0)
+    df["period"] = pd.to_datetime(df["period"])
+    wide = df.pivot_table(index="period", columns="fueltype",
+                          values="value", aggfunc="sum").fillna(0)
+    ef = pd.Series(EMISSION_FACTORS)
+    gen = wide.reindex(columns=ef.index, fill_value=0)
+    ci_series = (gen.mul(ef, axis=1).sum(axis=1) /
+                 gen.sum(axis=1).replace(0, np.nan)).dropna()
+    if len(ci_series) < 24:
+        raise RuntimeError("insufficient live hours")
+    # daily-persistence: most recent CI observed at each hour-of-day (UTC)
+    by_hour = ci_series.groupby(ci_series.index.hour).last()
+    now_utc_h = pd.Timestamp.now(tz="UTC").hour
+    now_local = pd.Timestamp.now()
+    rows = []
+    for t in range(hours):
+        ci_t = float(by_hour.get((now_utc_h + t) % 24, by_hour.mean()))
+        ts = now_local + pd.Timedelta(hours=t)
+        rows.append({"datetime": ts, "ci": ci_t, "price": _tou_price(ts)})
+    return pd.DataFrame(rows)
+
+
+@st.cache_data(show_spinner="Fetching live TVA grid data…")
+def get_window(refresh_token):
+    """Cached on the refresh timestamp: only a Refresh re-hits the network."""
+    try:
+        return fetch_live_window(), "live"
+    except Exception as exc:
+        return pd.read_csv(DATA / "forecast_window.csv"), f"static:{type(exc).__name__}"
+
+
+kpis, integ, hourly, monthly, fuel, _static = load()
 
 # Live "data as of" anchor — set on first load, re-stamped by the Refresh button.
 # The 48h forecast horizon is anchored to this timestamp, so clock times (next
@@ -122,6 +210,10 @@ PRICE = window["price"].values if "price" in window.columns else np.full(len(CI)
 if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = pd.Timestamp.now()
 NOW = st.session_state.last_refresh
+
+window, DATA_SOURCE = get_window(st.session_state.last_refresh)
+CI = window["ci"].values
+PRICE = window["price"].values if "price" in window.columns else np.full(len(CI), 40.0)
 
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
@@ -251,8 +343,13 @@ if st.session_state.page == "ops":
             "<div class='page-sub'>Real-time overview of grid conditions, forecasts and job scheduling</div>",
             unsafe_allow_html=True)
     with h2:
-        st.markdown(f"<div class='fresh'><span class='fresh-dot'></span>Data as of {fmt_stamp(NOW)}</div>",
-                    unsafe_allow_html=True)
+        if DATA_SOURCE == "live":
+            src = "<span style='color:#15803d;font-weight:700;'>Live · EIA</span>"; dot = "background:#22c55e;"
+        else:
+            src = "<span style='color:#b45309;font-weight:700;'>Demo data</span>"; dot = "background:#f59e0b;"
+        st.markdown(
+            f"<div class='fresh'><span class='fresh-dot' style='{dot}'></span>"
+            f"Data as of {fmt_stamp(NOW)} · {src}</div>", unsafe_allow_html=True)
         if st.button("🔄 Refresh", key="refresh"):
             st.session_state.last_refresh = pd.Timestamp.now()
             st.cache_data.clear(); st.rerun()
