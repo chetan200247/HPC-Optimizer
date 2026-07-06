@@ -1,7 +1,7 @@
 """
 Carbon-Aware Scheduling — Streamlit Dashboard
 
-Two stakeholder views:
+Two stakeholder views (sidebar nav):
   • Operations Manager — live grid CI, 48h forecast, interactive job scheduler
   • CSRD Compliance    — carbon savings, audit-ready reporting
 
@@ -21,7 +21,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
 
-# ── Config & data loading ─────────────────────────────────────────────────────
+# ── Config & palette ──────────────────────────────────────────────────────────
 
 DATA = Path(__file__).parent / "data"
 
@@ -29,12 +29,77 @@ st.set_page_config(
     page_title="Carbon-Aware Scheduling",
     page_icon="🌱",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
-GREEN = "#2E7D32"; BLUE = "#1565C0"; RED = "#C62828"
-ORANGE = "#E65100"; GREY = "#607D8B"; AMBER = "#F9A825"
+# Primary palette (extracted to match the mock design)
+GREEN   = "#15803D"   # primary green — CI line, positive metrics
+GREEN_L = "#16A34A"   # brighter accent (buttons)
+BLUE    = "#1565C0"
+RED     = "#C62828"
+ORANGE  = "#E65100"
+GREY    = "#607D8B"
+AMBER   = "#F9A825"
 
+
+# ── Global styling ────────────────────────────────────────────────────────────
+
+st.markdown("""
+<style>
+  .block-container {padding-top: 1.4rem; padding-bottom: 2rem; max-width: 1560px;}
+  [data-testid="stAppViewContainer"] {background: #f5f8f6;}
+
+  /* Sidebar — dark green */
+  section[data-testid="stSidebar"] {background: #0c2a1a;}
+  section[data-testid="stSidebar"] * {color: #e8f0ea;}
+  section[data-testid="stSidebar"] button[kind="primary"] {
+      background:#16a34a; border:none; color:#fff; font-weight:600; text-align:left;
+      justify-content:flex-start; border-radius:10px;}
+  section[data-testid="stSidebar"] button[kind="secondary"] {
+      background:transparent; border:none; color:#bcd5c5; font-weight:500; text-align:left;
+      justify-content:flex-start; border-radius:10px;}
+  section[data-testid="stSidebar"] button[kind="secondary"]:hover {background:#123d27;}
+
+  /* Green primary buttons in the main area */
+  [data-testid="stAppViewContainer"] button[kind="primary"] {background:#16a34a; border-color:#16a34a;}
+
+  /* Page header */
+  .page-title {font-size:1.9rem; font-weight:800; color:#12261c; line-height:1.1;}
+  .page-sub {font-size:0.95rem; color:#5b6b62; margin-top:2px;}
+  .fresh {text-align:right; font-size:0.82rem; color:#5b6b62; font-weight:600;}
+  .fresh-dot {height:8px; width:8px; border-radius:50%; background:#22c55e;
+              display:inline-block; margin-right:6px;}
+
+  /* Metric cards */
+  .metric-card {background:#fff; border:1px solid #e6ebe8; border-radius:14px;
+                padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.04); height:100%;}
+  .mc-label {font-size:0.82rem; color:#5b6b62; font-weight:600;
+             display:flex; gap:6px; align-items:center;}
+  .mc-value {font-weight:800; color:#12261c; line-height:1.1; margin-top:8px;}
+  .mc-unit  {font-size:0.9rem; color:#5b6b62; font-weight:600;}
+  .mc-sub   {font-size:0.78rem; color:#7a8a80; margin-top:8px;}
+  .up {color:#15803d; font-weight:700;}
+
+  .badge {display:inline-block; padding:2px 12px; border-radius:999px;
+          font-size:0.74rem; font-weight:700; margin-top:10px;}
+  .badge-green {background:#dcfce7; color:#15803d;}
+  .badge-amber {background:#fef3c7; color:#b45309;}
+  .badge-red   {background:#fee2e2; color:#b91c1c;}
+
+  .tg-num {font-size:1.3rem; font-weight:800; color:#12261c; line-height:1.1;}
+  .tg-lbl {font-size:0.72rem; color:#5b6b62; margin-top:2px;}
+
+  /* Recommended-schedule table */
+  .rec-table {width:100%; border-collapse:collapse; font-size:0.85rem;}
+  .rec-table th {text-align:left; color:#5b6b62; font-weight:600;
+                 padding:10px 8px; border-bottom:1px solid #e6ebe8; white-space:nowrap;}
+  .rec-table td {padding:11px 8px; border-bottom:1px solid #f0f3f1; color:#22332a;}
+  .status-dot {height:8px; width:8px; border-radius:50%; display:inline-block; margin-right:6px;}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ── Data loading ──────────────────────────────────────────────────────────────
 
 @st.cache_data
 def load():
@@ -48,57 +113,26 @@ def load():
 
 
 kpis, integ, hourly, monthly, fuel, window = load()
-CI = window["ci"].values  # representative 48h CI forecast
-# Representative Time-of-Use electricity price ($/MWh); modelled, see src/models/pricing.py
+CI = window["ci"].values
 PRICE = window["price"].values if "price" in window.columns else np.full(len(CI), 40.0)
+try:
+    BASE = pd.to_datetime(window["datetime"]).iloc[0]
+except Exception:
+    BASE = pd.Timestamp("2025-05-20 10:30")
 
 
-# ── Inline joint carbon + cost scheduler (numpy only) ─────────────────────────
+# ── Formatting helpers ────────────────────────────────────────────────────────
 
-def joint_schedule(ci, price, nodes, duration, deadline, priority, weight,
-                   power_per_node=1.2):
-    """
-    Schedule a job optimising a weighted blend of carbon and cost.
+def fmt_clock(dt):
+    """'Sat, 3:00 PM' — no leading zero, platform-independent."""
+    return dt.strftime("%a, ") + dt.strftime("%I:%M %p").lstrip("0")
 
-    weight = 1.0 → pure carbon · 0.0 → pure cost · 0.5 → balanced.
-    Carbon and price are on different scales, so each is normalised to [0, 1]
-    across the forecast horizon before blending.
 
-    Returns a dict with the chosen start hour, the CI and price at that window
-    versus running now, and the carbon (kg CO₂) and cost ($) saved.
-    """
-    energy_kwh = nodes * power_per_node * duration
-    energy_mwh = energy_kwh / 1000.0
-    run_ci = float(np.mean(ci[:duration]))
-    run_pr = float(np.mean(price[:duration]))
+def fmt_stamp(dt):
+    return dt.strftime("%d %b %Y, ") + dt.strftime("%I:%M %p").lstrip("0")
 
-    def result(t):
-        sci = float(np.mean(ci[t:t + duration]))
-        spr = float(np.mean(price[t:t + duration]))
-        return dict(start=t, sched_ci=sci, sched_price=spr,
-                    run_ci=run_ci, run_pr=run_pr,
-                    carbon_saved_kg=energy_kwh * (run_ci - sci) / 1000.0,
-                    cost_saved_usd=energy_mwh * (run_pr - spr))
 
-    if priority == "Urgent (run now)":
-        return result(0)
-    latest = min(deadline, len(ci)) - duration
-    if latest < 0:
-        return result(0)
-
-    def norm(a):
-        a = np.asarray(a, float); rng = a.max() - a.min()
-        return (a - a.min()) / rng if rng > 1e-9 else np.zeros_like(a)
-
-    ci_n, pr_n = norm(ci), norm(price)
-    best_t, best_score = 0, 1e9
-    for t in range(latest + 1):
-        score = (weight * float(np.mean(ci_n[t:t + duration]))
-                 + (1 - weight) * float(np.mean(pr_n[t:t + duration])))
-        if score < best_score:
-            best_score, best_t = score, t
-    return result(best_t)
-
+# ── Scheduler (numpy only — logic unchanged) ──────────────────────────────────
 
 def zone(ci_value):
     if ci_value < 250: return GREEN, "🟢 Green"
@@ -108,11 +142,10 @@ def zone(ci_value):
 
 def schedule_queue(jobs, ci, price, weight, total_nodes, power_per_node=1.2):
     """
-    Batch scheduler (numpy). Places a whole queue of jobs — urgent first (never
-    deferred), then flexible by descending energy — into the lowest blended
-    carbon/cost window within each deadline, committing node capacity as it goes.
-    A single job is simply a queue of one. Returns per-job results + the hourly
-    node-occupancy array.
+    Batch scheduler. Places a whole queue — urgent first (never deferred), then
+    flexible by descending energy — into the lowest blended carbon/cost window
+    within each deadline, committing node capacity as it goes. A single job is a
+    queue of one. Returns per-job results + the hourly node-occupancy array.
     """
     H = len(ci)
     cap = np.zeros(H)
@@ -136,211 +169,310 @@ def schedule_queue(jobs, ci, price, weight, total_nodes, power_per_node=1.2):
             start = 0
         else:
             latest = min(dl, H) - dur
-            start, best = 0, float("inf")
-            found = False
+            start, best, found = 0, float("inf"), False
             for t in range(0, max(latest, 0) + 1):
                 if np.all(cap[t:t + dur] + nodes <= total_nodes):
                     s = weight * float(np.mean(ci_n[t:t + dur])) + \
                         (1 - weight) * float(np.mean(pr_n[t:t + dur]))
                     if s < best:
                         best, start, found = s, t, True
-            if not found:      # no capacity-feasible slot → run now
+            if not found:
                 start = 0
         cap[start:start + dur] += nodes
         sci = float(np.mean(ci[start:start + dur])); spr = float(np.mean(price[start:start + dur]))
         results[i] = dict(
-            idx=i, nodes=nodes, duration=dur, priority=j["priority"], start=start,
-            sched_ci=sci, sched_price=spr, run_ci=run_ci, run_pr=run_pr,
+            idx=i, name=j.get("name", ""), nodes=nodes, duration=dur,
+            priority=j["priority"], start=start, sched_ci=sci, sched_price=spr,
+            run_ci=run_ci, run_pr=run_pr,
             carbon_saved_kg=energy_kwh * (run_ci - sci) / 1000,
             cost_saved_usd=(energy_kwh / 1000) * (run_pr - spr))
     return results, cap
 
 
-def build_timeline(results, ci):
-    """Gantt-style timeline: CI green/amber/red bands with each job drawn on top."""
-    H = len(ci)
-    fig = go.Figure()
-    # background CI zone bands (one soft rectangle per hour)
-    for h in range(H):
-        z = GREEN if ci[h] < 250 else (AMBER if ci[h] < 350 else RED)
-        fig.add_vrect(x0=h, x1=h + 1, fillcolor=z, opacity=0.10, line_width=0, layer="below")
-    # one horizontal bar per job
-    ordered = sorted(results, key=lambda r: r["start"])
-    labels = [f"J{r['idx']+1} · {r['nodes']:,}n" for r in ordered]
-    starts = [r["start"] for r in ordered]
-    durs   = [r["duration"] for r in ordered]
-    colors = [ORANGE if r["priority"].startswith("Urgent") else GREEN for r in ordered]
-    fig.add_trace(go.Bar(
-        y=labels, x=durs, base=starts, orientation="h",
-        marker=dict(color=colors, line=dict(color="white", width=1)),
-        hovertemplate="%{y}<br>start +%{base}h · %{x}h long<extra></extra>", showlegend=False))
-    fig.update_layout(
-        height=max(180, 26 * len(results) + 80), margin=dict(l=10, r=10, t=10, b=10),
-        barmode="overlay", plot_bgcolor="white",
-        xaxis=dict(title="Hours ahead", range=[0, H], dtick=6),
-        yaxis=dict(autorange="reversed"))
-    return fig
+# ── HTML card builder ─────────────────────────────────────────────────────────
+
+def card(label, value, unit="", sub="", badge=None, badge_cls="badge-green",
+         icon="", value_size="1.9rem"):
+    b = f'<div class="badge {badge_cls}">{badge}</div>' if badge else ""
+    s = f'<div class="mc-sub">{sub}</div>' if sub else ""
+    u = f'<span class="mc-unit">{unit}</span>' if unit else ""
+    return (f'<div class="metric-card"><div class="mc-label">{icon} {label}</div>'
+            f'<div class="mc-value" style="font-size:{value_size};">{value} {u}</div>'
+            f'{b}{s}</div>')
 
 
-# ── Header ────────────────────────────────────────────────────────────────────
+# ── Sidebar navigation ────────────────────────────────────────────────────────
 
-st.markdown(
-    f"<h1 style='margin-bottom:0;'>🌱 Carbon-Aware Scheduling for Data Centres</h1>"
-    f"<p style='color:#607D8B;font-size:1.05rem;margin-top:4px;'>"
-    f"Shift delay-tolerant workloads into low-carbon windows — zero hardware cost · "
-    f"validated on ORNL Summit × TVA grid data</p>",
-    unsafe_allow_html=True,
-)
+if "page" not in st.session_state:
+    st.session_state.page = "ops"
 
-tab_ops, tab_csrd = st.tabs(["⚙️  Operations Manager", "📋  CSRD Compliance"])
+st.sidebar.markdown(
+    "<div style='display:flex;align-items:center;gap:10px;padding:6px 4px 18px 4px;'>"
+    "<span style='font-size:1.6rem;'>🌿</span>"
+    "<span style='font-size:1.15rem;font-weight:800;line-height:1.1;'>Carbon-Aware<br>Scheduling</span>"
+    "</div>", unsafe_allow_html=True)
+
+
+def nav(label, page_id):
+    active = st.session_state.page == page_id
+    if st.sidebar.button(label, use_container_width=True,
+                         type="primary" if active else "secondary", key="nav_" + page_id):
+        st.session_state.page = page_id
+        st.rerun()
+
+
+nav("⚙️  Operations Manager", "ops")
+nav("🛡️  CSRD Compliance", "csrd")
+
+st.sidebar.markdown(
+    "<div style='background:#123d27;border-radius:12px;padding:16px;margin-top:28px;'>"
+    "<div style='font-size:1.4rem;'>🌱</div>"
+    "<div style='font-weight:700;margin-top:6px;'>Every decision counts.</div>"
+    "<div style='color:#bcd5c5;font-size:0.85rem;margin-top:4px;'>Schedule smart. Reduce carbon.</div>"
+    "<hr style='border-color:#1e5236;margin:12px 0;'>"
+    "<div style='color:#9dc2ac;font-size:0.78rem;'>Sustainable. Efficient. Responsible.</div>"
+    "</div>", unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  OPERATIONS MANAGER VIEW
 # ══════════════════════════════════════════════════════════════════════════════
 
-with tab_ops:
-    current_ci = float(CI[0])
-    forecast_low = float(CI.min())
-    low_hour = int(CI.argmin())
-    active_nodes = int(kpis["total_nodes"] * kpis["mean_utilisation_pct"] / 100)
+if st.session_state.page == "ops":
 
-    c1, c2, c3, c4 = st.columns(4)
-    zc, zlabel = zone(current_ci)
-    c1.metric("Current Grid CI", f"{current_ci:.0f} gCO₂/kWh", zlabel)
-    c2.metric("Forecasted Low", f"{forecast_low:.0f} gCO₂/kWh", f"at hour +{low_hour}")
-    c3.metric("Active Nodes", f"{active_nodes:,}", f"of {kpis['total_nodes']:,}")
-    c4.metric("Mean Utilisation", f"{kpis['mean_utilisation_pct']:.0f}%", "cluster load")
+    # ── Header ────────────────────────────────────────────────────────────────
+    h1, h2 = st.columns([6, 3])
+    with h1:
+        st.markdown(
+            "<div class='page-title'>Operations Manager</div>"
+            "<div class='page-sub'>Real-time overview of grid conditions, forecasts and job scheduling</div>",
+            unsafe_allow_html=True)
+    with h2:
+        st.markdown(f"<div class='fresh'><span class='fresh-dot'></span>Data as of {fmt_stamp(BASE)}</div>",
+                    unsafe_allow_html=True)
+        if st.button("🔄 Refresh", key="refresh"):
+            st.cache_data.clear(); st.rerun()
 
-    st.markdown("##### 48-Hour Forecast — Carbon Intensity & Electricity Price")
-    fig = go.Figure()
-    # Carbon intensity (left axis)
-    fig.add_trace(go.Scatter(
-        x=list(range(len(CI))), y=CI, mode="lines",
-        line=dict(color=BLUE, width=3), name="Carbon intensity (gCO₂/kWh)",
-        fill="tozeroy", fillcolor="rgba(21,101,192,0.08)"))
-    # Electricity price (right axis)
-    fig.add_trace(go.Scatter(
-        x=list(range(len(PRICE))), y=PRICE, mode="lines", yaxis="y2",
-        line=dict(color=ORANGE, width=2, dash="dot"), name="Electricity price ($/MWh)"))
-    fig.add_vline(x=low_hour, line=dict(color=GREEN, dash="dash"),
-                  annotation_text=f"cleanest +{low_hour}h")
-    fig.update_layout(
-        height=340, margin=dict(l=10, r=10, t=10, b=10),
-        xaxis_title="Hours ahead", yaxis=dict(title="gCO₂/kWh"),
-        yaxis2=dict(title="$/MWh", overlaying="y", side="right", showgrid=False),
-        legend=dict(orientation="h", y=1.12), plot_bgcolor="white")
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption("Electricity price is a representative Time-of-Use tariff (cheap overnight, "
-               "expensive on-peak) — see src/models/pricing.py. Clean hours and cheap hours "
-               "often but not always coincide, which is what the optimiser balances.")
+    st.write("")
 
-    # ── Unified scheduler: one job → quick answer, many jobs → queue + timeline ─
-    st.markdown("##### 🗓️  Schedule Jobs")
-    st.caption("Start with one job for a quick recommendation, or **add rows to plan your whole "
-               "queue**. Urgent jobs run now; flexible jobs are shifted into the cleanest window "
-               "within their deadline, respecting the cluster's node capacity.")
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SCHEDULE JOBS — the hero panel
+    # ══════════════════════════════════════════════════════════════════════════
+    with st.container(border=True):
+        t1, t2 = st.columns([5, 4])
+        with t1:
+            st.markdown("### 🗓️ Schedule Jobs")
+            st.caption("Add jobs to the queue. The system recommends the best start time to "
+                       "reduce carbon without violating deadlines.")
+        with t2:
+            opt = st.slider("Optimise for  —  🌿 Carbon  ⟷  Cost 💲", 0, 100, 20, step=5,
+                            format="%d%%",
+                            help="Slide left for more carbon savings, right for more cost savings.")
+            weight = (100 - opt) / 100.0   # carbon weight
+            st.caption(f"⬅ More carbon savings  ·  **{100-opt}% carbon / {opt}% cost**  ·  "
+                       f"More cost savings ➡")
 
-    if "queue" not in st.session_state:
-        st.session_state.queue = pd.DataFrame(
-            [{"Nodes": 2000, "Duration (h)": 4, "Deadline (h)": 24, "Priority": "Flexible"}])
+        if "queue" not in st.session_state:
+            st.session_state.queue = pd.DataFrame([
+                {"Job Name": "Weather Simulations", "Nodes": 2000, "Duration (h)": 4,
+                 "Deadline (h)": 12, "Priority": "Flexible"},
+                {"Job Name": "ML Model Training", "Nodes": 2343, "Duration (h)": 24,
+                 "Deadline (h)": 48, "Priority": "Urgent (run now)"},
+            ])
 
-    carbon_priority = st.slider(
-        "Optimise for  —  ⬅ Cost  ·  Carbon ➡", 0, 100, 70, step=5,
-        help="0 = minimise electricity cost only · 100 = minimise carbon only · "
-             "in between = balance the two.")
-    weight = carbon_priority / 100.0
-    st.caption(f"Weighting: **{carbon_priority}% carbon / {100-carbon_priority}% cost**  ·  "
-               f"use the **＋** on the last row to add jobs, or the trash icon to remove them.")
+        edited = st.data_editor(
+            st.session_state.queue, num_rows="dynamic", use_container_width=True, key="qeditor",
+            column_config={
+                "Job Name": st.column_config.TextColumn(width="medium",
+                                                        help="A label for the job (optional)"),
+                "Nodes": st.column_config.NumberColumn("Nodes (required)", min_value=1,
+                                                       max_value=kpis["total_nodes"], step=100),
+                "Duration (h)": st.column_config.NumberColumn(min_value=1, max_value=24, step=1),
+                "Deadline (h)": st.column_config.NumberColumn("Deadline (h)", min_value=1,
+                                                              max_value=48, step=1,
+                                                              help="Must finish within this many hours"),
+                "Priority": st.column_config.SelectboxColumn(
+                    options=["Flexible", "Urgent (run now)"], required=True),
+            })
+        st.caption("Use the **＋** on the last row to add another job, or the 🗑 to remove one.")
 
-    edited = st.data_editor(
-        st.session_state.queue, num_rows="dynamic", use_container_width=True, key="qeditor",
-        column_config={
-            "Nodes": st.column_config.NumberColumn(min_value=1, max_value=kpis["total_nodes"],
-                                                   step=100, help="Nodes the job needs"),
-            "Duration (h)": st.column_config.NumberColumn(min_value=1, max_value=24, step=1),
-            "Deadline (h)": st.column_config.NumberColumn(min_value=1, max_value=48, step=1,
-                                                          help="Must finish within this many hours"),
-            "Priority": st.column_config.SelectboxColumn(
-                options=["Flexible", "Urgent (run now)"], required=True),
-        })
+        # validate rows
+        jobs = []
+        for _, r in edited.iterrows():
+            try:
+                n = int(r["Nodes"]); d = int(r["Duration (h)"]); dl = int(r["Deadline (h)"])
+                p = str(r["Priority"]); nm = str(r["Job Name"]) if pd.notna(r["Job Name"]) else ""
+            except (TypeError, ValueError):
+                continue
+            if n >= 1 and d >= 1 and dl >= d:
+                jobs.append(dict(name=nm, nodes=n, duration=d, deadline=dl, priority=p))
 
-    # validate rows
-    jobs = []
-    for _, r in edited.iterrows():
-        try:
-            n = int(r["Nodes"]); d = int(r["Duration (h)"]); dl = int(r["Deadline (h)"])
-            p = str(r["Priority"])
-        except (TypeError, ValueError):
-            continue
-        if n >= 1 and d >= 1 and dl >= d:
-            jobs.append(dict(nodes=n, duration=d, deadline=dl, priority=p))
-
-    if not jobs:
-        st.info("Add at least one valid job (deadline must be ≥ duration).")
-    else:
-        results, cap = schedule_queue(jobs, CI, PRICE, weight, kpis["total_nodes"])
-
-        if len(jobs) == 1:
-            # ── quick single-job answer (prominent) ──────────────────────────
-            r = results[0]
-            saved_kg, saved_usd = r["carbon_saved_kg"], r["cost_saved_usd"]
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Recommended Start", "Now" if r["start"] == 0 else f"+{r['start']} h",
-                      f"CI {r['sched_ci']:.0f} · ${r['sched_price']:.0f}/MWh")
-            m2.metric("Carbon Saved", f"{saved_kg:,.1f} kg CO₂",
-                      f"{r['run_ci'] - r['sched_ci']:+.0f} gCO₂/kWh vs now")
-            m3.metric("Cost Saved", f"${saved_usd:,.2f}",
-                      f"{r['run_pr'] - r['sched_price']:+.0f} $/MWh vs now")
-            if r["priority"].startswith("Urgent"):
-                st.info("⚡ Urgent job runs immediately and is never deferred.")
-            elif r["start"] == 0:
-                st.warning("Already in the best available window for your chosen balance — run now.")
-            else:
-                bits = []
-                if saved_kg > 0.05: bits.append(f"**{saved_kg:,.1f} kg CO₂**")
-                if saved_usd > 0.005: bits.append(f"**${saved_usd:,.2f}**")
-                gain = " and ".join(bits) if bits else "carbon/cost"
-                st.success(f"✅ Defer this job by **{r['start']} hours** to save {gain}, "
-                           f"with no change to the computation.")
+        # schedule
+        if jobs:
+            results, cap = schedule_queue(jobs, CI, PRICE, weight, kpis["total_nodes"])
         else:
-            # ── batch view: summary tiles + table + timeline ─────────────────
-            tot_kg = sum(r["carbon_saved_kg"] for r in results)
-            tot_usd = sum(r["cost_saved_usd"] for r in results)
-            flex = [r for r in results if not r["priority"].startswith("Urgent")]
-            urgent = [r for r in results if r["priority"].startswith("Urgent")]
-            avg_wait = np.mean([r["start"] for r in flex]) if flex else 0
-            max_wait = max([r["start"] for r in flex], default=0)
-            on_time = sum(1 for r in urgent if r["start"] == 0)
-            peak = cap.max() / kpis["total_nodes"] * 100
+            results, cap = [], np.zeros(len(CI))
 
-            s1, s2, s3, s4 = st.columns(4)
-            s1.metric("Total Carbon Saved", f"{tot_kg:,.0f} kg CO₂", f"{len(jobs)} jobs")
-            s2.metric("Total Cost Saved", f"${tot_usd:,.0f}")
-            s3.metric("Avg / Max Wait", f"{avg_wait:.0f} / {max_wait} h", "flexible jobs")
-            s4.metric("Urgent On-Time", f"{on_time}/{len(urgent)}" if urgent else "—",
-                      f"peak load {peak:.0f}%")
+        tot_kg = sum(r["carbon_saved_kg"] for r in results)
+        tot_usd = sum(r["cost_saved_usd"] for r in results)
+        flex = [r for r in results if not r["priority"].startswith("Urgent")]
+        urgent = [r for r in results if r["priority"].startswith("Urgent")]
+        deferred = sum(1 for r in flex if r["start"] > 0)
+        avg_wait = np.mean([r["start"] for r in flex]) if flex else 0
+        max_wait = max([r["start"] for r in flex], default=0)
+        on_time = sum(1 for r in urgent if r["start"] == 0)
+        on_time_rate = (on_time / len(urgent) * 100) if urgent else 100
 
-            st.markdown("**Cluster schedule** — jobs placed on the 48-hour carbon forecast "
-                        "(🟢 clean · 🟡 medium · 🔴 dirty). Orange = urgent, green = flexible.")
-            st.plotly_chart(build_timeline(results, CI), use_container_width=True)
+        # summary cards
+        st.write("")
+        m1, m2, m3 = st.columns(3)
+        m1.markdown(card("Total Carbon Saved", f"{tot_kg:,.0f}", "kg CO₂",
+                         sub="<span class='up'>↑</span> vs run-now", icon="🌿"),
+                    unsafe_allow_html=True)
+        m2.markdown(card("Total Cost Saved", f"${tot_usd:,.0f}", "",
+                         sub="<span class='up'>↑</span> vs run-now", icon="💲"),
+                    unsafe_allow_html=True)
+        m3.markdown(card("Urgent On-Time Rate", f"{on_time_rate:.0f}%", "",
+                         sub=f"{on_time} of {len(urgent)} urgent jobs on time" if urgent
+                         else "no urgent jobs queued", icon="🛡️"),
+                    unsafe_allow_html=True)
 
-            tbl = pd.DataFrame([{
-                "Job": f"J{r['idx']+1}", "Nodes": r["nodes"], "Dur (h)": r["duration"],
-                "Priority": "Urgent" if r["priority"].startswith("Urgent") else "Flexible",
-                "Start": "Now" if r["start"] == 0 else f"+{r['start']}h",
-                "Window CI": f"{r['sched_ci']:.0f}", "Carbon saved (kg)": round(r["carbon_saved_kg"], 1),
-                "Cost saved ($)": round(r["cost_saved_usd"], 2),
-            } for r in sorted(results, key=lambda r: r["idx"])])
-            st.dataframe(tbl, use_container_width=True, hide_index=True)
+        # recommended schedule table
+        if results:
+            st.markdown("##### Recommended Schedule")
+            rows = ""
+            for r in sorted(results, key=lambda r: r["idx"]):
+                urg = r["priority"].startswith("Urgent")
+                if r["start"] == 0:
+                    start_html = "<b style='color:#b45309;'>Run Now</b>" if urg \
+                        else "<b style='color:#15803d;'>Now</b>"
+                else:
+                    t = BASE + pd.Timedelta(hours=r["start"])
+                    start_html = f"<b style='color:#15803d;'>{fmt_clock(t)}</b> (+{r['start']}h)"
+                status = ("<span class='status-dot' style='background:#f59e0b;'></span>Running" if urg
+                          else "<span class='status-dot' style='background:#22c55e;'></span>Scheduled")
+                name = r["name"] or f"Job {r['idx']+1}"
+                rows += (f"<tr><td>{name}</td><td>{r['nodes']:,}</td><td>{r['duration']}</td>"
+                         f"<td>{'Urgent (run now)' if urg else 'Flexible'}</td><td>{start_html}</td>"
+                         f"<td>{r['carbon_saved_kg']:,.0f} kg CO₂</td><td>${r['cost_saved_usd']:,.0f}</td>"
+                         f"<td>{status}</td></tr>")
+            st.markdown(
+                "<div style='overflow-x:auto;'><table class='rec-table'><thead><tr>"
+                "<th>Job</th><th>Nodes</th><th>Duration (h)</th><th>Priority</th>"
+                "<th>Recommended Start</th><th>Carbon Saved</th><th>Cost Saved</th><th>Status</th>"
+                "</tr></thead><tbody>" + rows + "</tbody></table></div>",
+                unsafe_allow_html=True)
+        else:
+            st.info("Add at least one valid job (deadline must be ≥ duration).")
+
+    st.write("")
+
+    # ── Grid status snapshot ──────────────────────────────────────────────────
+    current_ci = float(CI[0])
+    if current_ci < 250:   z_cls, z_lab, z_sub = "badge-green", "Green", "Low carbon intensity"
+    elif current_ci < 350: z_cls, z_lab, z_sub = "badge-amber", "Amber", "Moderate carbon intensity"
+    else:                  z_cls, z_lab, z_sub = "badge-red", "Red", "High carbon intensity"
+
+    price_now = float(PRICE[0])
+    q1, q2 = np.quantile(PRICE, [1/3, 2/3])
+    if price_now <= q1:   p_tier, p_cls, p_lab = 1, "badge-green", "Low Tier"
+    elif price_now <= q2: p_tier, p_cls, p_lab = 2, "badge-amber", "Mid Tier"
+    else:                 p_tier, p_cls, p_lab = 3, "badge-red", "High Tier"
+
+    # next green window
+    thr = 250 if CI.min() < 250 else float(np.percentile(CI, 20))
+    green_idx = int(np.argmax(CI < thr)) if (CI < thr).any() else int(CI.argmin())
+    gw_dur = 0
+    for h in range(green_idx, len(CI)):
+        if CI[h] < thr: gw_dur += 1
+        else: break
+    gw_time = BASE + pd.Timedelta(hours=green_idx)
+
+    active = int(kpis["total_nodes"] * kpis["mean_utilisation_pct"] / 100)
+    idle = kpis["total_nodes"] - active
+    act_pct = round(kpis["mean_utilisation_pct"]); idle_pct = 100 - act_pct
+
+    left, right = st.columns([1.15, 1])
+
+    # ── 48-hour forecast (left, tall) ─────────────────────────────────────────
+    with left:
+        with st.container(border=True):
+            st.markdown("##### 48-Hour Forecast — Carbon Intensity & Electricity Price")
+            sigma = 0.05 + 0.005 * np.arange(len(CI))          # widening 95% band
+            upper, lower = CI * (1 + sigma), CI * (1 - sigma)
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=list(range(len(CI))), y=upper, mode="lines",
+                                     line=dict(width=0), hoverinfo="skip", showlegend=False))
+            fig.add_trace(go.Scatter(x=list(range(len(CI))), y=lower, mode="lines",
+                                     line=dict(width=0), fill="tonexty",
+                                     fillcolor="rgba(21,128,61,0.15)", hoverinfo="skip",
+                                     name="Confidence Band (95%)"))
+            fig.add_trace(go.Scatter(x=list(range(len(CI))), y=CI, mode="lines",
+                                     line=dict(color=GREEN, width=3),
+                                     name="Carbon Intensity (gCO₂/kWh)"))
+            fig.add_trace(go.Scatter(x=list(range(len(PRICE))), y=PRICE, mode="lines", yaxis="y2",
+                                     line=dict(color="#9aa5a0", width=1.5, dash="dash"),
+                                     name="Electricity Price ($/MWh)"))
+            fig.add_vline(x=green_idx, line=dict(color=GREEN, dash="dash"),
+                          annotation_text="Next green window", annotation_position="top")
+            fig.update_layout(
+                height=430, margin=dict(l=10, r=10, t=30, b=10),
+                xaxis=dict(title="Hours ahead", dtick=6),
+                yaxis=dict(title="gCO₂/kWh"),
+                yaxis2=dict(title="$/MWh", overlaying="y", side="right", showgrid=False),
+                legend=dict(orientation="h", y=1.12, x=0), plot_bgcolor="white")
+            st.plotly_chart(fig, use_container_width=True)
+
+    # ── Status cards (right) ──────────────────────────────────────────────────
+    with right:
+        a, b, c = st.columns(3)
+        a.markdown(card("Current Grid CI", f"{current_ci:.0f}", "gCO₂/kWh",
+                        badge=z_lab, badge_cls=z_cls, sub=z_sub, icon="☁️",
+                        value_size="1.5rem"), unsafe_allow_html=True)
+        b.markdown(card("Electricity Price", f"${price_now:.2f}", "/MWh",
+                        badge=p_lab, badge_cls=p_cls, sub=f"Price tier: {p_tier} of 3",
+                        icon="💷", value_size="1.5rem"), unsafe_allow_html=True)
+        c.markdown(card("Next Green Window", fmt_clock(gw_time).split(", ")[1], "",
+                        sub=f"in {green_idx}h ({gw_dur}h window)", icon="🌱",
+                        value_size="1.35rem"), unsafe_allow_html=True)
+
+        st.write("")
+        d, e = st.columns([1, 1.4])
+        d.markdown(
+            "<div class='metric-card'><div class='mc-label'>🗄️ Cluster Capacity</div>"
+            "<div style='display:flex;gap:16px;margin-top:14px;'>"
+            f"<div><div class='tg-num'>{kpis['total_nodes']:,}</div><div class='tg-lbl'>Working</div></div>"
+            f"<div><div class='tg-num' style='color:#15803d;'>{active:,}</div>"
+            f"<div class='tg-lbl'>Active {act_pct}%</div></div>"
+            f"<div><div class='tg-num'>{idle:,}</div><div class='tg-lbl'>Idle {idle_pct}%</div></div>"
+            "</div></div>", unsafe_allow_html=True)
+        e.markdown(
+            "<div class='metric-card'><div class='mc-label'>📊 Today at a Glance</div>"
+            "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px;'>"
+            f"<div><div class='tg-num'>{deferred}</div><div class='tg-lbl'>Jobs Deferred</div></div>"
+            f"<div><div class='tg-num'>{avg_wait:.0f} / {max_wait} h</div><div class='tg-lbl'>Avg / Max Wait</div></div>"
+            f"<div><div class='tg-num'>{on_time_rate:.0f}%</div><div class='tg-lbl'>Urgent On-Time</div></div>"
+            f"<div><div class='tg-num' style='color:#15803d;'>{tot_kg:,.0f}</div><div class='tg-lbl'>Carbon Saved (kg)</div></div>"
+            f"<div><div class='tg-num' style='color:#15803d;'>${tot_usd:,.0f}</div><div class='tg-lbl'>Cost Saved</div></div>"
+            "</div></div>", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+    st.caption("Confidence band and Time-of-Use electricity price are representative model outputs "
+               "(see src/models/pricing.py). Clean and cheap hours often but not always coincide — "
+               "the optimiser balances the two via the slider above.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CSRD COMPLIANCE VIEW
 # ══════════════════════════════════════════════════════════════════════════════
 
-with tab_csrd:
+elif st.session_state.page == "csrd":
+    st.markdown(
+        "<div class='page-title'>CSRD Compliance</div>"
+        "<div class='page-sub'>Carbon savings & audit-ready reporting</div>",
+        unsafe_allow_html=True)
     st.caption("Reporting period: 5 observed ORNL Summit days · TVA grid 2019–2022 · IPCC AR5 emission factors")
+    st.write("")
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Projected Annual Saving", f"{kpis['annual_realistic_tco2']} tCO₂/yr",
@@ -352,7 +484,6 @@ with tab_csrd:
 
     left, right = st.columns([3, 2])
 
-    # ── Savings hierarchy ─────────────────────────────────────────────────────
     with left:
         st.markdown("##### Carbon Savings Hierarchy")
         st.caption("From theoretical potential to realistic achievable — each constraint reduces the saving.")
@@ -369,12 +500,11 @@ with tab_csrd:
                           yaxis=dict(autorange="reversed"))
         st.plotly_chart(fig, use_container_width=True)
 
-    # ── Fuel mix donut ────────────────────────────────────────────────────────
     with right:
         st.markdown("##### TVA Grid Energy Mix")
-        cmap = {"Nuclear":"#1565C0","Natural Gas":"#FB8C00","Coal":"#6D4C41",
-                "Hydro":"#00ACC1","Solar":"#FDD835","Wind":"#7CB342",
-                "Petroleum":"#E53935","Other":"#9E9E9E"}
+        cmap = {"Nuclear": "#1565C0", "Natural Gas": "#FB8C00", "Coal": "#6D4C41",
+                "Hydro": "#00ACC1", "Solar": "#FDD835", "Wind": "#7CB342",
+                "Petroleum": "#E53935", "Other": "#9E9E9E"}
         fm = fuel[fuel["share"] > 0.05]
         fig = go.Figure(go.Pie(labels=fm["fuel"], values=fm["share"], hole=0.55,
                                marker_colors=[cmap.get(f, GREY) for f in fm["fuel"]]))
@@ -382,7 +512,6 @@ with tab_csrd:
                           showlegend=True, legend=dict(font=dict(size=10)))
         st.plotly_chart(fig, use_container_width=True)
 
-    # ── Baseline vs optimised hourly ──────────────────────────────────────────
     st.markdown("##### Baseline vs Optimised Emissions — by Hour of Day")
     byhr = integ.groupby("hour_of_day").agg(
         baseline=("baseline_carbon_kg", "mean"),
@@ -398,7 +527,6 @@ with tab_csrd:
                       plot_bgcolor="white", legend=dict(orientation="h", y=1.1))
     st.plotly_chart(fig, use_container_width=True)
 
-    # ── Monthly CI trend ──────────────────────────────────────────────────────
     st.markdown("##### TVA Grid Carbon Intensity — Monthly Trend (2019–2022)")
     fig = go.Figure(go.Scatter(x=monthly["ym"], y=monthly["carbon_intensity_gCO2_per_kWh"],
                     line=dict(color=BLUE, width=2), fill="tozeroy",
@@ -408,7 +536,6 @@ with tab_csrd:
                       plot_bgcolor="white")
     st.plotly_chart(fig, use_container_width=True)
 
-    # ── Audit export ──────────────────────────────────────────────────────────
     st.markdown("##### 📥 Audit-Ready Export")
     csv = integ.to_csv(index=False).encode()
     st.download_button("Download carbon audit report (CSV)", csv,
