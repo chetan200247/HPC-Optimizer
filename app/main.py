@@ -190,16 +190,18 @@ def fetch_live_window(hours=48, timeout=10):
         ci_t = float(by_hour.get((now_utc_h + t) % 24, by_hour.mean()))
         ts = now_local + pd.Timedelta(hours=t)
         rows.append({"datetime": ts, "ci": ci_t, "price": _tou_price(ts)})
-    return pd.DataFrame(rows)
+    rows[0]["ci"] = float(ci_series.iloc[-1])          # hour 0 = true latest reading
+    return pd.DataFrame(rows), str(ci_series.index[-1])
 
 
 @st.cache_data(show_spinner="Fetching live TVA grid data…")
 def get_window(refresh_token):
     """Cached on the refresh timestamp: only a Refresh re-hits the network."""
     try:
-        return fetch_live_window(), "live"
+        df, latest_ts = fetch_live_window()
+        return df, "live", latest_ts
     except Exception as exc:
-        return pd.read_csv(DATA / "forecast_window.csv"), f"static:{type(exc).__name__}"
+        return pd.read_csv(DATA / "forecast_window.csv"), f"static:{type(exc).__name__}", None
 
 
 kpis, integ, hourly, monthly, fuel, _static = load()
@@ -211,7 +213,7 @@ if "last_refresh" not in st.session_state:
     st.session_state.last_refresh = pd.Timestamp.now()
 NOW = st.session_state.last_refresh
 
-window, DATA_SOURCE = get_window(st.session_state.last_refresh)
+window, DATA_SOURCE, LATEST_TS = get_window(st.session_state.last_refresh)
 CI = window["ci"].values
 PRICE = window["price"].values if "price" in window.columns else np.full(len(CI), 40.0)
 
@@ -353,6 +355,8 @@ if st.session_state.page == "ops":
         if st.button("🔄 Refresh", key="refresh"):
             st.session_state.last_refresh = pd.Timestamp.now()
             st.cache_data.clear(); st.rerun()
+        if DATA_SOURCE == "live" and LATEST_TS:
+            st.caption(f"Latest EIA reading: {LATEST_TS} UTC")
 
     st.write("")
 
