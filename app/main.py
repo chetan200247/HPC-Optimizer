@@ -457,8 +457,10 @@ if st.session_state.page == "ops":
             tooltip += f"<br>Latest TVA reading: {LATEST_TS} UTC"
         ic, bc = st.columns([1, 5], vertical_alignment="center")
         ic.markdown(
+            "<div style='display:flex;align-items:center;justify-content:center;"
+            "height:2.5rem;margin-right:-6px;'>"
             f"<span class='tooltip-wrap' style='font-size:1.15rem;color:#000000;'>ⓘ"
-            f"<span class='tooltip-body'>{tooltip}</span></span>",
+            f"<span class='tooltip-body'>{tooltip}</span></span></div>",
             unsafe_allow_html=True)
         if bc.button("🔄 Refresh", key="refresh", use_container_width=True):
             st.session_state.last_refresh = pd.Timestamp.now(tz="UTC").tz_localize(None)
