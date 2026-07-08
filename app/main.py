@@ -149,6 +149,16 @@ st.markdown("""
               display:flex; align-items:center; gap:6px;}
   .section-h .sub {font-weight:600; color:#000000; font-size:1rem;}
   .mc-info {cursor:help; color:#000000; font-size:0.9rem; margin-left:2px;}
+  /* Custom hover tooltip (native title-attribute tooltips are unreliable,
+     especially multi-line) -- shows/hides immediately and reliably via CSS. */
+  .tooltip-wrap {position:relative; display:inline-block; cursor:help;}
+  .tooltip-wrap .tooltip-body {
+      visibility:hidden; opacity:0; transition:opacity .12s ease;
+      position:absolute; right:0; top:135%; z-index:1000;
+      background:#0a1710; color:#ffffff; padding:10px 14px; border-radius:8px;
+      font-size:0.82rem; font-weight:500; line-height:1.5; white-space:nowrap;
+      box-shadow:0 4px 14px rgba(0,0,0,0.25); text-align:left;}
+  .tooltip-wrap:hover .tooltip-body {visibility:visible; opacity:1;}
   /* label = supporting text (smaller) */
   .mc-label {font-size:1rem; color:#000000; font-weight:600;
              display:flex; gap:6px; align-items:center;}
@@ -444,10 +454,12 @@ if st.session_state.page == "ops":
     with h3:
         tooltip = f"Data as of {fmt_stamp(NOW)} UTC"
         if DATA_SOURCE == "live" and LATEST_TS:
-            tooltip += f"&#10;Latest TVA reading: {LATEST_TS} UTC"
+            tooltip += f"<br>Latest TVA reading: {LATEST_TS} UTC"
         ic, bc = st.columns([1, 5], vertical_alignment="center")
-        ic.markdown(f"<span class='mc-info' style='font-size:1.15rem;' title=\"{tooltip}\">ⓘ</span>",
-                   unsafe_allow_html=True)
+        ic.markdown(
+            f"<span class='tooltip-wrap' style='font-size:1.15rem;color:#000000;'>ⓘ"
+            f"<span class='tooltip-body'>{tooltip}</span></span>",
+            unsafe_allow_html=True)
         if bc.button("🔄 Refresh", key="refresh", use_container_width=True):
             st.session_state.last_refresh = pd.Timestamp.now(tz="UTC").tz_localize(None)
             st.cache_data.clear(); st.rerun()
