@@ -73,7 +73,18 @@ st.markdown("""
   html, body, [class*="css"], [data-testid="stAppViewContainer"] *,
   section[data-testid="stSidebar"] *, button, input, textarea, select {
       font-family: "Times New Roman", Times, serif !important;}
-  [data-testid*="Icon"], [class*="material-icons"], [class*="material-symbols"] {
+  /* Icon fix must OUT-SPECIFY the rules above (same ancestor scope + the
+     icon's own attribute), since a bare [data-testid*="Icon"] selector is
+     less specific than "section[data-testid='stSidebar'] *" and loses even
+     with !important on both sides. Verified against Streamlit's own
+     compiled source: the icon element's real testid is stIconMaterial and
+     its font is genuinely named "Material Symbols Rounded". */
+  section[data-testid="stSidebar"] [data-testid="stIconMaterial"],
+  [data-testid="stAppViewContainer"] [data-testid="stIconMaterial"],
+  section[data-testid="stSidebar"] [data-testid*="Icon"],
+  [data-testid="stAppViewContainer"] [data-testid*="Icon"],
+  [data-testid="stIconMaterial"], [data-testid*="Icon"],
+  [class*="material-icons"], [class*="material-symbols"] {
       font-family: "Material Symbols Rounded", "Material Icons", sans-serif !important;}
 
   /* Moderate global font increase */
