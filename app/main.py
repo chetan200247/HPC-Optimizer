@@ -2,12 +2,14 @@
 Carbon-Aware Scheduling — Streamlit Dashboard
 
 Two stakeholder views (sidebar nav):
-  • Operations Manager — live grid CI, 48h forecast, interactive job scheduler
+  • Operations Manager — live grid CI, 48h forecast, advisory recommendation
+    tool for one flexible job at a time (not connected to a real job
+    scheduler — see the capacity disclaimer on that view)
   • CSRD Compliance    — carbon savings, audit-ready reporting
 
 Self-contained: reads small precomputed files from app/data/ and runs a
-numpy-only greedy scheduler. No heavy ML dependencies at runtime, so it
-deploys cleanly on Streamlit Community Cloud.
+numpy-only window-ranking recommender. No heavy ML dependencies at runtime,
+so it deploys cleanly on Streamlit Community Cloud.
 
 Run locally:   streamlit run app/main.py
 """
@@ -272,7 +274,15 @@ def fmt_stamp(dt):
     return dt.strftime("%d %b %Y, ") + dt.strftime("%I:%M %p").lstrip("0")
 
 
-# ── Scheduler (numpy only — logic unchanged) ──────────────────────────────────
+# ── Recommendation engine (numpy only, single flexible job, no capacity claim) ─
+#
+# This tool has no connection to the real job scheduler, so it cannot see what
+# else is queued or running, and cannot reserve or verify node availability.
+# It therefore makes no capacity-aware placement decision — it only reports,
+# for one flexible job, every start time within the deadline and how clean/
+# cheap that window is versus running now. The operator picks; nothing is
+# auto-submitted. "Nodes required" is used only to size the energy (and hence
+# the carbon/cost impact) of the job, never to check for conflicts.
 
 def zone(ci_value):
     if ci_value < 250: return GREEN, "🟢 Green"
@@ -280,53 +290,53 @@ def zone(ci_value):
     return RED, "🔴 Red"
 
 
-def schedule_queue(jobs, ci, price, weight, total_nodes, power_per_node=1.2):
+def _tier_label(ts):
+    """Named ToU period for a timestamp — off-peak / shoulder / peak."""
+    h = ts.hour
+    if h < 7: return "Off-Peak", "badge-green"
+    if 17 <= h < 22: return "Peak", "badge-red"
+    return "Shoulder", "badge-amber"
+
+
+def find_recommended_windows(nodes, duration, deadline_hours, ci, price, weight,
+                             hourly_stats, now, power_per_node=1.2):
     """
-    Batch scheduler. Places a whole queue — urgent first (never deferred), then
-    flexible by descending energy — into the lowest blended carbon/cost window
-    within each deadline, committing node capacity as it goes. A single job is a
-    queue of one. Returns per-job results + the hourly node-occupancy array.
+    Scan every feasible start hour for one flexible job within its deadline and
+    return ALL viable windows, ranked best-first by the blended carbon/cost
+    score. Returns (options, run_ci, run_price) — options is a list of dicts.
     """
     H = len(ci)
-    cap = np.zeros(H)
+    latest = min(deadline_hours, H) - duration
+    if latest < 0:
+        return [], None, None
+    energy_kwh = nodes * power_per_node * duration
+    energy_mwh = energy_kwh / 1000.0
+    run_ci = float(np.mean(ci[:duration]))
+    run_pr = float(np.mean(price[:duration]))
 
     def norm(a):
         a = np.asarray(a, float); rng = a.max() - a.min()
         return (a - a.min()) / rng if rng > 1e-9 else np.zeros_like(a)
     ci_n, pr_n = norm(ci), norm(price)
 
-    order = sorted(range(len(jobs)),
-                   key=lambda i: (not jobs[i]["priority"].startswith("Urgent"),
-                                  -(jobs[i]["nodes"] * jobs[i]["duration"])))
-    results = [None] * len(jobs)
-    for i in order:
-        j = jobs[i]; nodes, dur, dl = j["nodes"], j["duration"], j["deadline"]
-        urgent = j["priority"].startswith("Urgent")
-        energy_kwh = nodes * power_per_node * dur
-        run_ci = float(np.mean(ci[:dur])); run_pr = float(np.mean(price[:dur]))
-
-        if urgent:
-            start = 0
-        else:
-            latest = min(dl, H) - dur
-            start, best, found = 0, float("inf"), False
-            for t in range(0, max(latest, 0) + 1):
-                if np.all(cap[t:t + dur] + nodes <= total_nodes):
-                    s = weight * float(np.mean(ci_n[t:t + dur])) + \
-                        (1 - weight) * float(np.mean(pr_n[t:t + dur]))
-                    if s < best:
-                        best, start, found = s, t, True
-            if not found:
-                start = 0
-        cap[start:start + dur] += nodes
-        sci = float(np.mean(ci[start:start + dur])); spr = float(np.mean(price[start:start + dur]))
-        results[i] = dict(
-            idx=i, name=j.get("name", ""), nodes=nodes, duration=dur,
-            priority=j["priority"], start=start, sched_ci=sci, sched_price=spr,
-            run_ci=run_ci, run_pr=run_pr,
-            carbon_saved_kg=energy_kwh * (run_ci - sci) / 1000,
-            cost_saved_usd=(energy_kwh / 1000) * (run_pr - spr))
-    return results, cap
+    options = []
+    for t in range(0, latest + 1):
+        sci = float(np.mean(ci[t:t + duration]))
+        spr = float(np.mean(price[t:t + duration]))
+        score = weight * float(np.mean(ci_n[t:t + duration])) + \
+                (1 - weight) * float(np.mean(pr_n[t:t + duration]))
+        ts = now + pd.Timedelta(hours=t)
+        hist = hourly_stats[hourly_stats["hour_of_day"] == ts.hour]
+        p25 = float(hist["p25"].iloc[0]) if len(hist) else None
+        p75 = float(hist["p75"].iloc[0]) if len(hist) else None
+        tier_lab, tier_cls = _tier_label(ts)
+        options.append(dict(
+            start=t, ts=ts, sched_ci=sci, sched_price=spr, score=score,
+            carbon_saved_kg=energy_kwh * (run_ci - sci) / 1000.0,
+            cost_saved_usd=energy_mwh * (run_pr - spr),
+            hist_p25=p25, hist_p75=p75, tier_label=tier_lab, tier_cls=tier_cls))
+    options.sort(key=lambda o: o["score"])
+    return options, run_ci, run_pr
 
 
 # ── HTML card builder ─────────────────────────────────────────────────────────
@@ -406,62 +416,37 @@ if st.session_state.page == "ops":
     st.write("")
 
     # ══════════════════════════════════════════════════════════════════════════
-    #  SECTION 1 · SCHEDULE JOBS
+    #  SECTION 1 · SCHEDULE A FLEXIBLE JOB (advisory — not connected to a scheduler)
     # ══════════════════════════════════════════════════════════════════════════
     with st.container(border=True):
-        st.markdown("<div class='section-h'>🗓️ Schedule Jobs</div>", unsafe_allow_html=True)
-        st.caption("Add jobs to the queue. The system recommends the best start time to "
-                   "reduce carbon without violating deadlines.")
+        st.markdown("<div class='section-h'>🗓️ Schedule a Flexible Job</div>", unsafe_allow_html=True)
+        st.caption("Enter one delay-tolerant job to see every viable start window before its "
+                   "deadline, ranked by carbon and cost saved versus running now. This is a "
+                   "recommendation only — it has no visibility into your job scheduler's real "
+                   "queue or node availability, and does not reserve or submit anything.")
 
-        if "queue" not in st.session_state:
-            st.session_state.queue = pd.DataFrame([
-                {"Job Name": "Weather Simulations", "Nodes": 2000, "Duration (h)": 4,
-                 "Deadline": NOW.floor("h") + pd.Timedelta(hours=12), "Priority": "Flexible"},
-                {"Job Name": "ML Model Training", "Nodes": 2343, "Duration (h)": 24,
-                 "Deadline": NOW.floor("h") + pd.Timedelta(hours=48), "Priority": "Urgent (run now)"},
-            ])
+        f1, f2, f3, f4 = st.columns([2.2, 1.3, 1.3, 2.2])
+        job_name = f1.text_input("Job name", value="My Job", key="job_name")
+        job_nodes = f2.number_input("Nodes required", min_value=1, max_value=kpis["total_nodes"],
+                                    value=2000, step=100, key="job_nodes")
+        job_duration = f3.number_input("Duration (h)", min_value=1, max_value=24, value=4,
+                                       step=1, key="job_duration")
+        default_dl = (NOW + pd.Timedelta(hours=12)).floor("h")
+        with f4:
+            dcol, tcol = st.columns(2)
+            dl_date = dcol.date_input("Deadline date", value=default_dl.date(), key="job_dl_date")
+            dl_time = tcol.time_input("Deadline hour", value=default_dl.time(), step=3600,
+                                      key="job_dl_time")
 
-        edited = st.data_editor(
-            st.session_state.queue, num_rows="dynamic", use_container_width=True, key="qeditor",
-            column_config={
-                "Job Name": st.column_config.TextColumn(width="medium",
-                                                        help="A label for the job (optional)"),
-                "Nodes": st.column_config.NumberColumn("Nodes (required)", min_value=1,
-                                                       max_value=kpis["total_nodes"], step=100),
-                "Duration (h)": st.column_config.NumberColumn(min_value=1, max_value=24, step=1),
-                "Deadline": st.column_config.DatetimeColumn(
-                    "Deadline", format="h A, D MMM YYYY", step=3600,
-                    help="Date & hour the job must finish by (hourly precision). Optimised within "
-                         "the next 48 h (the forecast horizon); later deadlines are treated as 48 h."),
-                "Priority": st.column_config.SelectboxColumn(
-                    options=["Flexible", "Urgent (run now)"], required=True),
-            })
-        st.caption("Use the **＋** on the last row to add another job, or the 🗑 to remove one.  ·  "
-                   "Deadlines are optimised within the next **48 h** (forecast horizon).")
-
-        # validate rows — convert the datetime deadline to hours-from-now
-        jobs = []
-        for _, r in edited.iterrows():
-            try:
-                n = int(r["Nodes"]); d = int(r["Duration (h)"])
-                p = str(r["Priority"]); nm = str(r["Job Name"]) if pd.notna(r["Job Name"]) else ""
-                if pd.isna(r["Deadline"]):
-                    continue
-                dl_hours = int(np.ceil((pd.to_datetime(r["Deadline"]) - NOW).total_seconds() / 3600))
-                dl = max(1, min(dl_hours, len(CI)))   # cap at the 48h forecast horizon
-            except (TypeError, ValueError):
-                continue
-            if n >= 1 and d >= 1 and dl >= d:
-                jobs.append(dict(name=nm, nodes=n, duration=d, deadline=dl, priority=p))
-
-        # ── Optimise-for slider (full width, below the table) ─────────────────
+        # ── Optimise-for slider (full width) ────────────────────────────────
         st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
         s1, s2 = st.columns([1, 1], vertical_alignment="center")
         s1.markdown("**Optimise for**  🌿 <span style='color:#15803d;font-weight:700;'>Carbon</span>",
                     unsafe_allow_html=True)
         s2.markdown("<div style='text-align:right;font-weight:700;'>Cost 💲</div>",
                     unsafe_allow_html=True)
-        st.caption("Adjust the balance between carbon savings and cost savings.")
+        st.caption("Adjust the balance between carbon savings and cost savings — this only "
+                   "re-ranks the options below, it doesn't change what's feasible.")
         opt = st.slider("Optimise for", 0, 100, 20, step=5, format="%d%%",
                         label_visibility="collapsed",
                         help="Slide left for more carbon savings, right for more cost savings.")
@@ -471,68 +456,126 @@ if st.session_state.page == "ops":
         l2.markdown("<div style='text-align:right;color:#233a2e;font-size:0.95rem;font-weight:600;'>"
                     "More cost savings ➡</div>", unsafe_allow_html=True)
 
-        # ── schedule ──────────────────────────────────────────────────────────
-        if jobs:
-            results, cap = schedule_queue(jobs, CI, PRICE, weight, kpis["total_nodes"])
+        # ── resolve deadline, warn if beyond the visible forecast horizon ──────
+        deadline_dt = pd.Timestamp.combine(dl_date, dl_time)
+        dl_hours_raw = (deadline_dt - NOW).total_seconds() / 3600.0
+        horizon_h = len(CI)
+
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+
+        if dl_hours_raw < job_duration:
+            st.warning(f"⚠️ The deadline must be at least {job_duration} h from now "
+                       f"(the job's own duration). Pick a later deadline.")
         else:
-            results, cap = [], np.zeros(len(CI))
+            if dl_hours_raw > horizon_h:
+                st.info(f"ℹ️ Your deadline is {dl_hours_raw - horizon_h:,.0f} h beyond the "
+                        f"{horizon_h}-hour forecast horizon — recommendations are computed "
+                        f"within the visible {horizon_h} h only.")
+            dl_hours = int(min(dl_hours_raw, horizon_h))
 
-        tot_kg = sum(r["carbon_saved_kg"] for r in results)
-        tot_usd = sum(r["cost_saved_usd"] for r in results)
-        flex = [r for r in results if not r["priority"].startswith("Urgent")]
-        urgent = [r for r in results if r["priority"].startswith("Urgent")]
-        deferred = sum(1 for r in flex if r["start"] > 0)
-        avg_wait = np.mean([r["start"] for r in flex]) if flex else 0
-        max_wait = max([r["start"] for r in flex], default=0)
-        on_time = sum(1 for r in urgent if r["start"] == 0)
-        on_time_rate = (on_time / len(urgent) * 100) if urgent else 100
+            options, run_ci, run_pr = find_recommended_windows(
+                job_nodes, job_duration, dl_hours, CI, PRICE, weight, hourly, NOW)
 
-        # ── Potential Impact (4 summary cards) ────────────────────────────────
-        st.markdown("<div style='height:8px;'></div>"
-                    "<div class='section-h'>Potential Impact "
-                    "<span class='sub'>(Recommendations Summary)</span></div>", unsafe_allow_html=True)
-        m1, m2, m3, m4 = st.columns(4)
-        m1.markdown(card("Total Carbon Saved", f"{tot_kg:,.0f}", "kg CO₂",
-                         sub="<span class='up'>↑</span> vs run-now", icon="🌿"),
-                    unsafe_allow_html=True)
-        m2.markdown(card("Total Cost Saved", f"${tot_usd:,.0f}", "",
-                         sub="<span class='up'>↑</span> vs run-now", icon="💲"),
-                    unsafe_allow_html=True)
-        m3.markdown(card("Avg / Max Wait", f"{avg_wait:.0f} / {max_wait} h", "",
-                         sub="Across flexible jobs", icon="⏱️"), unsafe_allow_html=True)
-        m4.markdown(card("Urgent On-Time Rate", f"{on_time} / {len(urgent)}" if urgent else "—", "",
-                         sub=f"<span class='up'>{on_time_rate:.0f}% on-time</span>" if urgent
-                         else "no urgent jobs", icon="🛡️"), unsafe_allow_html=True)
+            if not options:
+                st.info("No feasible window found — try a later deadline.")
+            else:
+                starts = [o["start"] for o in options]
+                avg_wait, max_wait = float(np.mean(starts)), max(starts)
+                best = options[0]
 
-        # ── Recommended Schedule table ────────────────────────────────────────
-        if results:
-            st.markdown("<div style='height:8px;'></div>"
-                        "<div class='section-h'>Recommended Schedule</div>", unsafe_allow_html=True)
-            st.caption("The system recommends the following start times for maximum benefit within constraints.")
-            rows = ""
-            for r in sorted(results, key=lambda r: r["idx"]):
-                urg = r["priority"].startswith("Urgent")
-                if r["start"] == 0:
-                    start_html = "<b style='color:#b45309;'>Run Now</b>" if urg \
-                        else "<b style='color:#15803d;'>Now</b>"
+                # marginal value of a longer deadline (+6h, capped at the horizon)
+                ext_note = None
+                if dl_hours < horizon_h:
+                    ext_dl = min(dl_hours + 6, horizon_h)
+                    ext_opts, _, _ = find_recommended_windows(
+                        job_nodes, job_duration, ext_dl, CI, PRICE, weight, hourly, NOW)
+                    if ext_opts:
+                        d_kg = ext_opts[0]["carbon_saved_kg"] - best["carbon_saved_kg"]
+                        d_usd = ext_opts[0]["cost_saved_usd"] - best["cost_saved_usd"]
+                        if d_kg > 0.5 or d_usd > 0.5:
+                            ext_note = (f"+{d_kg:,.0f} kg CO₂ / +${d_usd:,.0f} possible", True)
+                        else:
+                            ext_note = ("No material gain from waiting longer", False)
                 else:
-                    t = NOW + pd.Timedelta(hours=r["start"])
-                    start_html = f"<b style='color:#15803d;'>{fmt_clock(t)}</b> (+{r['start']}h)"
-                status = ("<span class='status-dot' style='background:#f59e0b;'></span>Running" if urg
-                          else "<span class='status-dot' style='background:#22c55e;'></span>Scheduled")
-                name = r["name"] or f"Job {r['idx']+1}"
-                rows += (f"<tr><td>{name}</td><td>{r['nodes']:,}</td><td>{r['duration']}</td>"
-                         f"<td>{'Urgent (run now)' if urg else 'Flexible'}</td><td>{start_html}</td>"
-                         f"<td>{r['carbon_saved_kg']:,.0f} kg CO₂</td><td>${r['cost_saved_usd']:,.0f}</td>"
-                         f"<td>{status}</td></tr>")
-            st.markdown(
-                "<div style='overflow-x:auto;'><table class='rec-table'><thead><tr>"
-                "<th>Job</th><th>Nodes</th><th>Duration (h)</th><th>Priority</th>"
-                "<th>Recommended Start</th><th>Carbon Saved</th><th>Cost Saved</th><th>Status</th>"
-                "</tr></thead><tbody>" + rows + "</tbody></table></div>",
-                unsafe_allow_html=True)
-        else:
-            st.info("Add at least one valid job (deadline must be ≥ duration).")
+                    ext_note = ("Already at the 48 h forecast horizon", False)
+
+                zc, zlab = zone(run_ci)
+                st.markdown("<div style='height:6px;'></div>"
+                            "<div class='section-h' style='font-size:1.05rem;'>Summary</div>",
+                           unsafe_allow_html=True)
+                m1, m2, m3, m4 = st.columns(4)
+                m1.markdown(card("Run-Now Baseline", f"{run_ci:.0f}", "gCO₂/kWh",
+                                 sub=f"${run_pr:.0f}/MWh · {zlab}", icon="⏱️"),
+                           unsafe_allow_html=True)
+                m2.markdown(card("Best Option", "Now" if best["start"] == 0 else f"+{best['start']} h",
+                                 sub=f"{best['carbon_saved_kg']:,.0f} kg CO₂ · ${best['cost_saved_usd']:,.0f} saved",
+                                 icon="🌿"), unsafe_allow_html=True)
+                m3.markdown(card("Options Found", f"{len(options)}", "",
+                                 sub=f"Avg wait {avg_wait:.0f} h · Max {max_wait} h", icon="📋"),
+                           unsafe_allow_html=True)
+                if ext_note:
+                    m4.markdown(card("+6 h Deadline Would Unlock", ext_note[0] if ext_note[1] else "—",
+                                     sub=ext_note[0] if not ext_note[1] else "vs current deadline",
+                                     icon="➕"), unsafe_allow_html=True)
+
+                st.markdown("<div style='height:8px;'></div>"
+                            "<div class='section-h' style='font-size:1.05rem;'>Recommended Start Times</div>",
+                           unsafe_allow_html=True)
+                st.caption(f"All {len(options)} windows that fit before your deadline, ranked best-first "
+                          f"for the current Carbon/Cost balance. ‘Hist. range’ is the P25–P75 "
+                          f"carbon intensity historically observed at that hour of day, as a rough guide "
+                          f"to how reliable the forecast is for that slot.")
+                rows = ""
+                for i, o in enumerate(options[:10]):
+                    hi_style = " style='background:#eafaf0;'" if i == 0 else ""
+                    start_html = ("<b style='color:#15803d;'>Now</b>" if o["start"] == 0
+                                 else f"<b style='color:#15803d;'>{fmt_clock(o['ts'])}</b> (+{o['start']}h)")
+                    zc, zlab = zone(o["sched_ci"])
+                    hist = (f"{o['hist_p25']:.0f}–{o['hist_p75']:.0f}"
+                           if o["hist_p25"] is not None else "—")
+                    rank_lab = "★ Best" if i == 0 else f"#{i+1}"
+                    rows += (f"<tr{hi_style}><td>{rank_lab}</td><td>{start_html}</td>"
+                            f"<td>{zlab} · {o['sched_ci']:.0f}</td>"
+                            f"<td><span class='badge {o['tier_cls']}' style='margin-top:0;'>"
+                            f"{o['tier_label']}</span> ${o['sched_price']:.0f}</td>"
+                            f"<td>{hist} gCO₂/kWh</td>"
+                            f"<td>{o['carbon_saved_kg']:,.0f} kg CO₂</td>"
+                            f"<td>${o['cost_saved_usd']:,.0f}</td></tr>")
+                st.markdown(
+                    "<div style='overflow-x:auto;'><table class='rec-table'><thead><tr>"
+                    "<th>Rank</th><th>Start Time</th><th>Carbon Zone</th><th>Price Period</th>"
+                    "<th>Hist. Range</th><th>Carbon Saved</th><th>Cost Saved</th>"
+                    "</tr></thead><tbody>" + rows + "</tbody></table></div>",
+                    unsafe_allow_html=True)
+                if len(options) > 10:
+                    st.caption(f"Showing the top 10 of {len(options)} feasible windows.")
+
+                opts_df = pd.DataFrame([{
+                    "Rank": i + 1, "Start": "Now" if o["start"] == 0 else fmt_clock(o["ts"]),
+                    "Hours from now": o["start"], "Predicted CI (gCO2/kWh)": round(o["sched_ci"], 1),
+                    "Predicted Price ($/MWh)": round(o["sched_price"], 1),
+                    "Price Period": o["tier_label"],
+                    "Carbon Saved (kg)": round(o["carbon_saved_kg"], 1),
+                    "Cost Saved ($)": round(o["cost_saved_usd"], 2),
+                } for i, o in enumerate(options)])
+                st.download_button("📥 Download recommended windows (CSV)",
+                                  opts_df.to_csv(index=False).encode(),
+                                  f"{job_name or 'job'}_recommended_windows.csv", "text/csv")
+
+                st.markdown(
+                    "<div style='margin-top:10px;padding:10px 14px;background:#fef3c7;"
+                    "border-radius:8px;font-size:0.88rem;color:#5c3d05;'>"
+                    "⚠️ <b>Capacity not verified.</b> This tool does not connect to the real job "
+                    "scheduler and cannot confirm nodes will actually be free at the recommended "
+                    "time. Check availability in your scheduler before committing.</div>",
+                    unsafe_allow_html=True)
+
+                with st.expander("Why a forecast instead of a fixed rule?"):
+                    st.caption(
+                        "The grid's cleanest hour moves from day to day with weather and demand, so "
+                        "a fixed habit like ‘always run at night’ misses it far more often than "
+                        "it hits it. A per-day forecast is what lets this tool find the actual clean "
+                        "window rather than an average one that rarely applies on any given day.")
 
     st.write("")
 
@@ -618,26 +661,6 @@ if st.session_state.page == "ops":
             yaxis2=dict(title="$/MWh", overlaying="y", side="right", showgrid=False),
             legend=dict(orientation="h", y=1.12, x=0), plot_bgcolor="white")
         st.plotly_chart(fig, use_container_width=True)
-
-    st.write("")
-
-    # ══════════════════════════════════════════════════════════════════════════
-    #  SECTION 3 · TODAY AT A GLANCE
-    # ══════════════════════════════════════════════════════════════════════════
-    with st.container(border=True):
-        st.markdown("<div class='section-h'>Today at a Glance</div>", unsafe_allow_html=True)
-        g1, g2, g3, g4, g5 = st.columns(5)
-        g1.markdown(card("Jobs Deferred Today", f"{deferred}", "",
-                         sub="<span class='up'>↑</span> vs yesterday", icon="🌿"), unsafe_allow_html=True)
-        g2.markdown(card("Avg Wait Time", f"{avg_wait:.0f} h", "",
-                         sub="Across flexible jobs", icon="⏱️"), unsafe_allow_html=True)
-        g3.markdown(card("Cumulative Carbon Saved", f"{tot_kg:,.0f}", "kg CO₂",
-                         sub="<span class='up'>↑</span> vs yesterday", icon="🌱"), unsafe_allow_html=True)
-        g4.markdown(card("Cumulative Cost Saved", f"${tot_usd:,.0f}", "",
-                         sub="<span class='up'>↑</span> vs yesterday", icon="💲"), unsafe_allow_html=True)
-        g5.markdown(card("Urgent On-Time Rate", f"{on_time_rate:.0f}%", "",
-                         sub=f"{on_time} of {len(urgent)} jobs completed on time" if urgent
-                         else "no urgent jobs", icon="🛡️"), unsafe_allow_html=True)
 
     st.caption("Confidence band and Time-of-Use electricity price are representative model outputs "
                "(see src/models/pricing.py). Clean and cheap hours often but not always coincide — "
