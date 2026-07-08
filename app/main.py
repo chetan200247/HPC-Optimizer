@@ -490,11 +490,6 @@ if st.session_state.page == "ops":
                          "48 h (the forecast horizon); later deadlines are capped to 48 h."),
             })
         st.session_state.job_batch = edited
-        st.markdown(
-            "<div style='color:#000000;font-size:0.9rem;margin-top:4px;'>"
-            "ⓘ Click a row's left edge to select it, then use the 🗑 icon that appears in the "
-            "table's toolbar to delete it. Use the ＋ on the last row to add another job.</div>",
-            unsafe_allow_html=True)
 
         # ── Optimise-for control: simple 3-way choice, no slider/percentages ───
         st.markdown("<div style='height:10px;'></div>"
