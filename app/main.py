@@ -188,8 +188,9 @@ def load():
     hourly = pd.read_csv(DATA / "ci_hourly.csv")
     monthly = pd.read_csv(DATA / "ci_monthly.csv")
     fuel = pd.read_csv(DATA / "fuel_mix.csv")
+    fuel_monthly = pd.read_csv(DATA / "fuel_mix_monthly.csv")
     window = pd.read_csv(DATA / "forecast_window.csv")
-    return kpis, integ, hourly, monthly, fuel, window
+    return kpis, integ, hourly, monthly, fuel, fuel_monthly, window
 
 
 # ── Live grid data via EIA API (with static fallback) ─────────────────────────
@@ -293,7 +294,7 @@ def get_window(refresh_token):
         return pd.read_csv(DATA / "forecast_window.csv"), f"static:{type(exc).__name__}", None
 
 
-kpis, integ, hourly, monthly, fuel, _static = load()
+kpis, integ, hourly, monthly, fuel, fuel_monthly, _static = load()
 
 # Live "data as of" anchor — Eastern Time (ORNL Summit / TVA's own timezone,
 # matching the rest of the project), set on first load, re-stamped by Refresh.
@@ -827,26 +828,70 @@ if st.session_state.page == "ops":
 # ══════════════════════════════════════════════════════════════════════════════
 
 elif st.session_state.page == "csrd":
-    st.markdown(
-        "<div class='page-title'>CSRD Compliance</div>"
-        "<div class='page-sub'>Carbon savings & audit-ready reporting</div>",
-        unsafe_allow_html=True)
-    st.caption("Reporting period: 5 observed ORNL Summit days · TVA grid 2019–2022 · IPCC AR5 emission factors")
+    st.markdown("<div class='page-title'>CSRD Compliance</div>", unsafe_allow_html=True)
     st.write("")
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Projected Annual Saving", f"{kpis['annual_realistic_tco2']} tCO₂/yr",
-              "realistic, forecast-driven")
-    c2.metric("Scope 2 Reduction", f"{kpis['reduction_pct']:.2f}%", "5-day observed")
-    c3.metric("Avg Grid CI", f"{kpis['mean_ci']:.0f} gCO₂/kWh",
-              f"{kpis['ci_min']:.0f}–{kpis['ci_max']:.0f} range")
-    c4.metric("Low-Carbon Share", f"{kpis['low_carbon_share']:.0f}%", "nuclear + hydro + solar")
+    def note_banner(text):
+        st.markdown(
+            f"<div style='background:#eef2f7;color:#000000;padding:10px 14px;"
+            f"border-radius:8px;border-left:4px solid #1565C0;font-size:0.9rem;"
+            f"margin-bottom:14px;'>ℹ️ {text}</div>", unsafe_allow_html=True)
 
-    left, right = st.columns([3, 2])
+    # ── derived figures used below ─────────────────────────────────────────────
+    node_hours_5d = kpis["total_nodes"] * 24 * 5
+    intensity_g_per_nodehour = kpis["total_baseline_kg_5d"] * 1000 / node_hours_5d
+    saving_per_node_kg = kpis["annual_realistic_tco2"] * 1000 / kpis["total_nodes"]
 
-    with left:
-        st.markdown("##### Carbon Savings Hierarchy")
-        st.caption("From theoretical potential to realistic achievable — each constraint reduces the saving.")
+    daily = integ.groupby("snapshot_date")["carbon_saved_kg"].sum().reset_index()
+    daily = daily.sort_values("snapshot_date")
+    daily["cumulative_kg"] = daily["carbon_saved_kg"].cumsum()
+
+    monthly2 = monthly.copy()
+    monthly2["year"] = monthly2["ym"].str[:4].astype(int)
+    yearly_ci = monthly2.groupby("year")["carbon_intensity_gCO2_per_kWh"].mean()
+    grid_trend_abs = yearly_ci.iloc[-1] - yearly_ci.iloc[0]
+    grid_trend_pct = grid_trend_abs / yearly_ci.iloc[0] * 100
+
+    EMISSION_FACTOR_TABLE = [
+        ("Coal", 1000, "Fossil"), ("Petroleum", 800, "Fossil"), ("Natural Gas", 450, "Fossil"),
+        ("Other", 500, "Mixed"), ("Nuclear", 0, "Zero-carbon"), ("Hydro", 0, "Zero-carbon"),
+        ("Wind", 0, "Zero-carbon"), ("Solar", 0, "Zero-carbon"),
+    ]
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SECTION A · ORNL SUMMIT — FACILITY SAVINGS (5-DAY SAMPLE)
+    # ══════════════════════════════════════════════════════════════════════════
+    with st.container(border=True):
+        st.markdown("<div class='section-h'>📋 ORNL Summit — Facility Savings "
+                    "<span class='sub'>(5-Day Sample)</span></div>", unsafe_allow_html=True)
+        note_banner(
+            "These figures come from <b>5 observed ORNL Summit snapshot days</b> "
+            "(2020-01-20, 2020-08-20, 2021-02-20, 2021-08-10, 2022-01-20 — 120 node-hours "
+            "of per-node telemetry), matched against TVA grid carbon intensity for the same "
+            "hours and projected to an annual figure. This is the facility's own demand-side "
+            "savings potential from carbon-aware scheduling.")
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.markdown(card("Projected Annual Saving", f"{kpis['annual_realistic_tco2']}", "tCO₂/yr",
+                         sub="Realistic, forecast-driven", icon="🌱"), unsafe_allow_html=True)
+        m2.markdown(card("Scope 2 Reduction", f"{kpis['reduction_pct']:.2f}", "%",
+                         sub="5-day observed", icon="📉"), unsafe_allow_html=True)
+        m3.markdown(card("Baseline Emissions Intensity", f"{intensity_g_per_nodehour:.0f}", "gCO₂/node-hr",
+                         sub="Normalised — comparable across time/scale", icon="⚙️",
+                         info="Total baseline emissions divided by total node-hours over the "
+                              "5-day sample. An intensity ratio, not an absolute total, so it "
+                              "stays comparable even if the facility's size or workload changes."),
+                   unsafe_allow_html=True)
+        m4.markdown(card("Savings per Node", f"{saving_per_node_kg:.1f}", "kg CO₂/yr",
+                         sub="Projected annual saving ÷ 4,626 nodes", icon="🖥️"),
+                   unsafe_allow_html=True)
+
+        st.markdown("<div style='height:6px;'></div>"
+                    "<div class='section-h' style='font-size:1.05rem;'>Carbon Savings Hierarchy</div>",
+                   unsafe_allow_html=True)
+        st.caption("From theoretical potential to realistic achievable — each constraint reduces the saving. "
+                  "The top tier's error bar shows the sensitivity range if 20–40% (vs. the central 30%) "
+                  "of workload is assumed flexible.")
         hier = pd.DataFrame({
             "Level": ["Unconstrained potential", "Capacity-aware ceiling", "Realistic forecast-driven"],
             "tCO2": [kpis["annual_unconstrained_tco2"], kpis["annual_ceiling_tco2"], kpis["annual_realistic_tco2"]],
@@ -854,54 +899,156 @@ elif st.session_state.page == "csrd":
         fig = go.Figure(go.Bar(
             x=hier["tCO2"], y=hier["Level"], orientation="h",
             marker_color=[GREY, BLUE, GREEN],
+            error_x=dict(type="data", symmetric=False,
+                        array=[105, 0, 0], arrayminus=[105, 0, 0], color="#000000", thickness=1.5),
             text=[f"{v} tCO₂/yr" for v in hier["tCO2"]], textposition="outside"))
-        fig.update_layout(height=240, margin=dict(l=10, r=40, t=10, b=10),
+        fig.update_layout(height=260, margin=dict(l=10, r=60, t=10, b=10),
                           xaxis_title="tCO₂ / year", plot_bgcolor="white",
                           yaxis=dict(autorange="reversed"))
         st.plotly_chart(fig, use_container_width=True)
 
-    with right:
-        st.markdown("##### TVA Grid Energy Mix")
-        cmap = {"Nuclear": "#1565C0", "Natural Gas": "#FB8C00", "Coal": "#6D4C41",
-                "Hydro": "#00ACC1", "Solar": "#FDD835", "Wind": "#7CB342",
-                "Petroleum": "#E53935", "Other": "#9E9E9E"}
-        fm = fuel[fuel["share"] > 0.05]
-        fig = go.Figure(go.Pie(labels=fm["fuel"], values=fm["share"], hole=0.55,
-                               marker_colors=[cmap.get(f, GREY) for f in fm["fuel"]]))
-        fig.update_layout(height=240, margin=dict(l=10, r=10, t=10, b=10),
-                          showlegend=True, legend=dict(font=dict(size=10)))
+        cA, cB = st.columns(2)
+        with cA:
+            st.markdown("<div class='section-h' style='font-size:1.05rem;'>Cumulative Avoided Emissions</div>",
+                       unsafe_allow_html=True)
+            st.caption("Running total across the 5 observed sample days.")
+            fig = go.Figure(go.Scatter(
+                x=daily["snapshot_date"], y=daily["cumulative_kg"], mode="lines+markers",
+                line=dict(color=GREEN, width=3), marker=dict(size=8),
+                fill="tozeroy", fillcolor="rgba(21,128,61,0.10)"))
+            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
+                              xaxis_title="Snapshot date", yaxis_title="Cumulative kg CO₂ avoided",
+                              plot_bgcolor="white")
+            st.plotly_chart(fig, use_container_width=True)
+        with cB:
+            st.markdown("<div class='section-h' style='font-size:1.05rem;'>Baseline vs Optimised "
+                        "— by Hour of Day</div>", unsafe_allow_html=True)
+            st.caption("Average carbon emitted per hour of day, as-is vs. carbon-aware scheduled.")
+            byhr = integ.groupby("hour_of_day").agg(
+                baseline=("baseline_carbon_kg", "mean"),
+                optimised=("optimized_carbon_kg", "mean")).reset_index()
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=byhr["hour_of_day"], y=byhr["baseline"],
+                          name="Baseline", line=dict(color=RED, width=2),
+                          fill="tozeroy", fillcolor="rgba(198,40,40,0.08)"))
+            fig.add_trace(go.Scatter(x=byhr["hour_of_day"], y=byhr["optimised"],
+                          name="Optimised", line=dict(color=GREEN, width=2)))
+            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
+                              xaxis_title="Hour of day", yaxis_title="Avg carbon (kg CO₂)",
+                              plot_bgcolor="white", legend=dict(orientation="h", y=1.15))
+            st.plotly_chart(fig, use_container_width=True)
+
+    st.write("")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SECTION B · TVA GRID — CARBON INTENSITY CONTEXT (2019–2022)
+    # ══════════════════════════════════════════════════════════════════════════
+    with st.container(border=True):
+        st.markdown("<div class='section-h'>⚡ TVA Grid — Carbon Intensity Context "
+                    "<span class='sub'>(2019–2022)</span></div>", unsafe_allow_html=True)
+        note_banner(
+            "These figures describe the <b>Tennessee Valley Authority (TVA) grid itself</b> "
+            "— the electricity source ORNL Summit draws from — based on <b>4 years of hourly "
+            "generation-by-fuel data</b> (Jan 2019 – Dec 2022) from the EIA. This is grid "
+            "context, independent of ORNL's own workload or scheduling.")
+
+        n1, n2, n3 = st.columns(3)
+        n1.markdown(card("Avg Grid CI", f"{kpis['mean_ci']:.0f}", "gCO₂/kWh",
+                         sub=f"{kpis['ci_min']:.0f}–{kpis['ci_max']:.0f} observed range", icon="☁️"),
+                   unsafe_allow_html=True)
+        n2.markdown(card("Low-Carbon Share", f"{kpis['low_carbon_share']:.0f}", "%",
+                         sub="Nuclear + hydro + solar + wind", icon="🌿"), unsafe_allow_html=True)
+        trend_arrow = "↓" if grid_trend_abs < 0 else "↑"
+        n3.markdown(card("Grid Trend, 2019→2022", f"{trend_arrow} {abs(grid_trend_pct):.1f}", "%",
+                         sub=f"{grid_trend_abs:+.1f} gCO₂/kWh net — non-monotonic (dipped in 2020)",
+                         icon="📈",
+                         info="Year-average carbon intensity fell in 2020, then partially "
+                              "rebounded through 2022. Shown as the honest net change, not a "
+                              "smoothed trend line."), unsafe_allow_html=True)
+
+        cC, cD = st.columns(2)
+        with cC:
+            st.markdown("<div class='section-h' style='font-size:1.05rem;'>TVA Grid Energy Mix</div>",
+                       unsafe_allow_html=True)
+            st.caption("Share of generation by fuel, averaged across the full 2019–2022 period.")
+            cmap = {"Nuclear": "#1565C0", "Natural Gas": "#FB8C00", "Coal": "#6D4C41",
+                    "Hydro": "#00ACC1", "Solar": "#FDD835", "Wind": "#7CB342",
+                    "Petroleum": "#E53935", "Other": "#9E9E9E"}
+            fm = fuel[fuel["share"] > 0.05]
+            fig = go.Figure(go.Pie(labels=fm["fuel"], values=fm["share"], hole=0.55,
+                                   marker_colors=[cmap.get(f, GREY) for f in fm["fuel"]]))
+            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
+                              showlegend=True, legend=dict(font=dict(size=10)))
+            st.plotly_chart(fig, use_container_width=True)
+        with cD:
+            st.markdown("<div class='section-h' style='font-size:1.05rem;'>Fuel Mix Over Time</div>",
+                       unsafe_allow_html=True)
+            st.caption("Monthly generation share by fuel — shows the grid's own transition, "
+                      "not just a single snapshot.")
+            sig_fuels = [f for f in cmap if fuel_monthly[f].mean() > 0.5]
+            fig = go.Figure()
+            for f in sig_fuels:
+                fig.add_trace(go.Scatter(x=fuel_monthly["ym"], y=fuel_monthly[f], mode="lines",
+                                         stackgroup="one", name=f,
+                                         line=dict(width=0.5, color=cmap.get(f, GREY))))
+            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
+                              xaxis_title="Month", yaxis_title="Share of generation (%)",
+                              plot_bgcolor="white", legend=dict(font=dict(size=9)),
+                              xaxis=dict(tickmode="array",
+                                        tickvals=fuel_monthly["ym"][::6].tolist()))
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("<div style='height:6px;'></div>"
+                    "<div class='section-h' style='font-size:1.05rem;'>TVA Grid Carbon Intensity "
+                    "— Monthly Trend</div>", unsafe_allow_html=True)
+        fig = go.Figure(go.Scatter(x=monthly["ym"], y=monthly["carbon_intensity_gCO2_per_kWh"],
+                        line=dict(color=BLUE, width=2), fill="tozeroy",
+                        fillcolor="rgba(21,101,192,0.08)"))
+        fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10),
+                          xaxis_title="Month", yaxis_title="Mean CI (gCO₂/kWh)",
+                          plot_bgcolor="white")
         st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("##### Baseline vs Optimised Emissions — by Hour of Day")
-    byhr = integ.groupby("hour_of_day").agg(
-        baseline=("baseline_carbon_kg", "mean"),
-        optimised=("optimized_carbon_kg", "mean")).reset_index()
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=byhr["hour_of_day"], y=byhr["baseline"],
-                  name="Baseline", line=dict(color=RED, width=2),
-                  fill="tozeroy", fillcolor="rgba(198,40,40,0.08)"))
-    fig.add_trace(go.Scatter(x=byhr["hour_of_day"], y=byhr["optimised"],
-                  name="Optimised", line=dict(color=GREEN, width=2)))
-    fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
-                      xaxis_title="Hour of day", yaxis_title="Avg carbon (kg CO₂)",
-                      plot_bgcolor="white", legend=dict(orientation="h", y=1.1))
-    st.plotly_chart(fig, use_container_width=True)
+    st.write("")
 
-    st.markdown("##### TVA Grid Carbon Intensity — Monthly Trend (2019–2022)")
-    fig = go.Figure(go.Scatter(x=monthly["ym"], y=monthly["carbon_intensity_gCO2_per_kWh"],
-                    line=dict(color=BLUE, width=2), fill="tozeroy",
-                    fillcolor="rgba(21,101,192,0.08)"))
-    fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10),
-                      xaxis_title="Month", yaxis_title="Mean CI (gCO₂/kWh)",
-                      plot_bgcolor="white")
-    st.plotly_chart(fig, use_container_width=True)
+    # ══════════════════════════════════════════════════════════════════════════
+    #  SECTION C · METHODOLOGY & AUDIT TRAIL
+    # ══════════════════════════════════════════════════════════════════════════
+    with st.container(border=True):
+        st.markdown("<div class='section-h'>🔍 Methodology &amp; Audit Trail</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='color:#000000;font-size:0.92rem;line-height:1.6;margin-bottom:12px;'>"
+            "<b>Reporting boundary:</b> Scope 2 (purchased electricity), location-based method "
+            "only — no market-based instruments (PPAs/RECs) are in scope. Single facility "
+            "(ORNL Summit); excludes Scope 1 (none applicable — no on-site combustion) and "
+            "Scope 3 (not modelled). The annual saving figure is a projection from a 5-day "
+            "observed sample, not a full-year measurement.</div>", unsafe_allow_html=True)
 
-    st.markdown("##### 📥 Audit-Ready Export")
-    csv = integ.to_csv(index=False).encode()
-    st.download_button("Download carbon audit report (CSV)", csv,
-                       "csrd_carbon_audit.csv", "text/csv")
-    st.caption("Methodology: IPCC AR5 lifecycle emission factors · capacity-aware load-shifting LP · "
-               "30% flexible-workload assumption (sensitivity 20–40%).")
+        st.markdown("<div class='section-h' style='font-size:1rem;'>Emission Factors Used</div>",
+                   unsafe_allow_html=True)
+        ef_rows = "".join(
+            f"<tr><td>{fname}</td><td>{ef} gCO₂/kWh</td><td>{cat}</td></tr>"
+            for fname, ef, cat in EMISSION_FACTOR_TABLE)
+        st.markdown(
+            "<div style='overflow-x:auto;'><table class='rec-table'><thead><tr>"
+            "<th>Fuel</th><th>Emission Factor</th><th>Category</th>"
+            "</tr></thead><tbody>" + ef_rows + "</tbody></table></div>",
+            unsafe_allow_html=True)
+
+        st.markdown(
+            "<div style='color:#000000;font-size:0.88rem;margin-top:12px;'>"
+            "<b>Data quality:</b> ORNL Summit telemetry ~99.98% complete (direct hardware "
+            "measurement, not estimated); TVA/EIA generation data ~99.6% complete (mandatory "
+            "FERC Order 830 reporting, direct measurement). Both cross-validated against "
+            "source documentation.</div>", unsafe_allow_html=True)
+
+        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+        csv = integ.to_csv(index=False).encode()
+        st.download_button("📥 Download carbon audit report (CSV)", csv,
+                           "csrd_carbon_audit.csv", "text/csv")
+        st.caption("Methodology: IPCC AR5-style lifecycle emission factors · capacity-aware "
+                  "load-shifting LP · 30% flexible-workload central assumption "
+                  "(sensitivity range 20–40%, shown on the Savings Hierarchy chart above).")
 
 
 st.markdown("---")
