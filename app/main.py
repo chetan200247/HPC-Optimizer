@@ -600,7 +600,7 @@ if st.session_state.page == "ops":
                        f"forecast horizon — recommendations are computed within the visible "
                        f"{horizon_h} h only.")
 
-            def render_detail(res):
+            def render_detail(res, page_key):
                 options, best = res["options"], res["best"]
                 m1, m2, m3, m4 = st.columns(4)
                 m1.markdown(card("Run-Now Baseline", f"{res['run_ci']:.0f}", "gCO₂/kWh",
@@ -631,12 +631,23 @@ if st.session_state.page == "ops":
                 st.markdown("<div style='height:8px;'></div>"
                             "<div class='section-h' style='font-size:1.05rem;'>Recommended Start Times</div>",
                            unsafe_allow_html=True)
+
+                # ── pagination: 10 windows per page, state kept per page_key ────
+                per_page = 10
+                n_pages = max(1, (len(options) + per_page - 1) // per_page)
+                pg_key = f"table_page_{page_key}"
+                page = min(st.session_state.get(pg_key, 0), n_pages - 1)
+                st.session_state[pg_key] = page
+                start_i = page * per_page
+                page_options = options[start_i:start_i + per_page]
+
                 rows_html = ""
-                for i, o in enumerate(options[:10]):
-                    hi_style = " style='background:#eef2f7;'" if i == 0 else ""
+                for i, o in enumerate(page_options):
+                    abs_i = start_i + i
+                    hi_style = " style='background:#eef2f7;'" if abs_i == 0 else ""
                     start_html = ("<b style='color:#15803d;'>Now</b>" if o["start"] == 0
                                  else f"<b style='color:#15803d;'>{fmt_clock(o['ts'])}</b> (+{o['start']}h)")
-                    rank_lab = "★ Best" if i == 0 else f"#{i+1}"
+                    rank_lab = "★ Best" if abs_i == 0 else f"#{abs_i+1}"
                     rows_html += (f"<tr{hi_style}><td>{rank_lab}</td><td>{start_html}</td>"
                                  f"<td>{o['sched_ci']:.0f} gCO₂/kWh</td>"
                                  f"<td>{o['carbon_saved_kg']:,.0f} kg CO₂</td>"
@@ -651,8 +662,23 @@ if st.session_state.page == "ops":
                     "confidence in this forecast, a wide range means Low.\">Confidence ⓘ</th>"
                     "</tr></thead><tbody>" + rows_html + "</tbody></table></div>",
                     unsafe_allow_html=True)
-                if len(options) > 10:
-                    st.caption(f"Showing the top 10 of {len(options)} feasible windows.")
+
+                if n_pages > 1:
+                    pv, lbl, nx = st.columns([1, 3, 1], vertical_alignment="center")
+                    if pv.button("◀ Prev", key=f"prev_{page_key}", disabled=page == 0,
+                                use_container_width=True):
+                        st.session_state[pg_key] = page - 1
+                        st.rerun()
+                    lbl.markdown(
+                        f"<div style='text-align:center;color:#000000;font-size:0.88rem;'>"
+                        f"Page {page+1} of {n_pages} · showing {start_i+1}–"
+                        f"{min(start_i+per_page, len(options))} of {len(options)}</div>",
+                        unsafe_allow_html=True)
+                    if nx.button("Next ▶", key=f"next_{page_key}", disabled=page >= n_pages - 1,
+                                use_container_width=True):
+                        st.session_state[pg_key] = page + 1
+                        st.rerun()
+
                 opts_df = pd.DataFrame([{
                     "Rank": i + 1, "Start": "Now" if o["start"] == 0 else fmt_clock(o["ts"]),
                     "Hours from now": o["start"], "Predicted CI (gCO2/kWh)": round(o["sched_ci"], 1),
@@ -670,7 +696,7 @@ if st.session_state.page == "ops":
                 st.markdown("<div style='height:2px;'></div>"
                             "<div class='section-h' style='font-size:1.05rem;'>Summary</div>",
                            unsafe_allow_html=True)
-                render_detail(results[0])
+                render_detail(results[0], "single")
             else:
                 # ── multi-job: compact summary table + drill-down selector ─────
                 st.markdown("<div style='height:2px;'></div>"
@@ -717,7 +743,7 @@ if st.session_state.page == "ops":
                 labels = [f"{i+1}. {r['name']}" for i, r in enumerate(results)]
                 pick = st.selectbox("View full recommended windows for:", range(len(results)),
                                     format_func=lambda i: labels[i], key="job_detail_pick")
-                render_detail(results[pick])
+                render_detail(results[pick], f"job{pick}")
 
             st.markdown(
                 "<div style='margin-top:10px;padding:10px 14px;background:#fef3c7;"
