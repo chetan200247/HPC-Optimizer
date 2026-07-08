@@ -11,8 +11,9 @@ Self-contained: reads small precomputed files from app/data/ and runs a
 numpy-only window-ranking recommender. No heavy ML dependencies at runtime,
 so it deploys cleanly on Streamlit Community Cloud.
 
-All times in the Operations Manager view are UTC (the server's clock), shown
-explicitly labelled as such — see the "Data as of ... UTC" line.
+All times in the Operations Manager view are Eastern Time (America/New_York)
+— the timezone of ORNL Summit and the TVA grid, matching the alignment used
+throughout the rest of the project — shown explicitly labelled as "ET".
 
 Run locally:   streamlit run app/main.py
 """
@@ -217,6 +218,10 @@ def _tou_price(ts):
             "peak": 95 if summer else 75}[tier]
 
 
+FACILITY_TZ = "America/New_York"   # ORNL Summit / TVA — Eastern Time, matching
+                                    # the rest of the project's timezone alignment
+
+
 def fetch_live_window(hours=48, timeout=10):
     """
     Pull the latest TVA hourly generation-by-fuel from the EIA API, convert it to
@@ -224,14 +229,21 @@ def fetch_live_window(hours=48, timeout=10):
     daily-persistence profile (the documented scheduling driver). Prices are the
     representative ToU tariff. Raises on any failure so the caller can fall back.
 
-    Everything here is anchored to a single UTC "now" — both the returned
-    window's timestamps and the hour-of-day used to look up the persistence
-    profile — so the displayed clock times and the underlying data agree.
+    EIA publishes on a UTC clock, so the persistence lookup (which hour-of-day
+    matches which historical CI) is correctly keyed in UTC — that is a fact
+    about the data source, not a display choice. Everything the operator
+    actually sees (the returned timestamps, and the ToU price, which depends
+    on the *local* hour) is in Eastern Time, since ORNL Summit and TVA are
+    physically in Oak Ridge, TN — the same alignment used throughout the rest
+    of this project, not the viewer's browser timezone (which Streamlit has
+    no way to know server-side, and which isn't the relevant stakeholder's
+    timezone anyway).
     """
     key = _eia_key()
     if not key:
         raise RuntimeError("EIA_API_KEY not configured")
     now_utc = pd.Timestamp.now(tz="UTC").tz_localize(None)
+    now_et = pd.Timestamp.now(tz=FACILITY_TZ).tz_localize(None)
     end = now_utc.floor("h")
     start = end - pd.Timedelta(days=6)
     params = {
@@ -257,15 +269,18 @@ def fetch_live_window(hours=48, timeout=10):
                  gen.sum(axis=1).replace(0, np.nan)).dropna()
     if len(ci_series) < 24:
         raise RuntimeError("insufficient live hours")
-    # daily-persistence: most recent CI observed at each hour-of-day (UTC)
+    # daily-persistence: most recent CI observed at each hour-of-day (UTC — the
+    # EIA "period" field's native timezone)
     by_hour = ci_series.groupby(ci_series.index.hour).last()
     rows = []
     for t in range(hours):
         ci_t = float(by_hour.get((now_utc.hour + t) % 24, by_hour.mean()))
-        ts = now_utc + pd.Timedelta(hours=t)
-        rows.append({"datetime": ts, "ci": ci_t, "price": _tou_price(ts)})
+        ts_et = now_et + pd.Timedelta(hours=t)
+        rows.append({"datetime": ts_et, "ci": ci_t, "price": _tou_price(ts_et)})
     rows[0]["ci"] = float(ci_series.iloc[-1])          # hour 0 = true latest reading
-    return pd.DataFrame(rows), str(ci_series.index[-1])
+    latest_et = (pd.Timestamp(ci_series.index[-1], tz="UTC")
+                .tz_convert(FACILITY_TZ).tz_localize(None))
+    return pd.DataFrame(rows), str(latest_et)
 
 
 @st.cache_data(show_spinner="Fetching live TVA grid data…")
@@ -280,11 +295,12 @@ def get_window(refresh_token):
 
 kpis, integ, hourly, monthly, fuel, _static = load()
 
-# Live "data as of" anchor — UTC, set on first load, re-stamped by Refresh.
+# Live "data as of" anchor — Eastern Time (ORNL Summit / TVA's own timezone,
+# matching the rest of the project), set on first load, re-stamped by Refresh.
 # The 48h forecast horizon is anchored to this timestamp, so clock times
 # (recommended starts, deadlines) read relative to the moment of refresh.
 if "last_refresh" not in st.session_state:
-    st.session_state.last_refresh = pd.Timestamp.now(tz="UTC").tz_localize(None)
+    st.session_state.last_refresh = pd.Timestamp.now(tz=FACILITY_TZ).tz_localize(None)
 NOW = st.session_state.last_refresh
 
 window, DATA_SOURCE, LATEST_TS = get_window(st.session_state.last_refresh)
@@ -454,9 +470,9 @@ if st.session_state.page == "ops":
         st.markdown(f"<div class='fresh'><span class='fresh-dot' style='{dot}'></span>{src}</div>",
                    unsafe_allow_html=True)
     with h3:
-        tooltip = f"Data as of {fmt_stamp(NOW)} UTC"
+        tooltip = f"Data as of {fmt_stamp(NOW)} ET"
         if DATA_SOURCE == "live" and LATEST_TS:
-            tooltip += f"<br>Latest TVA reading: {LATEST_TS} UTC"
+            tooltip += f"<br>Latest TVA reading: {LATEST_TS} ET"
         ic, bc = st.columns([1, 4], vertical_alignment="center")
         ic.markdown(
             "<div style='display:flex;align-items:center;justify-content:center;"
@@ -465,7 +481,7 @@ if st.session_state.page == "ops":
             f"<span class='tooltip-body'>{tooltip}</span></span></div>",
             unsafe_allow_html=True)
         if bc.button("🔄 Refresh", key="refresh", use_container_width=True):
-            st.session_state.last_refresh = pd.Timestamp.now(tz="UTC").tz_localize(None)
+            st.session_state.last_refresh = pd.Timestamp.now(tz=FACILITY_TZ).tz_localize(None)
             st.cache_data.clear(); st.rerun()
 
     st.write("")
@@ -485,7 +501,8 @@ if st.session_state.page == "ops":
             "checked independently against the grid forecast.</span></span>"
             "</div>", unsafe_allow_html=True)
         st.markdown("<div style='color:#000000;font-size:0.85rem;margin-bottom:8px;'>"
-                    "All times on this page are in UTC.</div>", unsafe_allow_html=True)
+                    "All times on this page are in Eastern Time (ET) — ORNL Summit's timezone."
+                    "</div>", unsafe_allow_html=True)
 
         # ── job entry table (data_editor — native row selection + delete icon) ──
         # num_rows="dynamic" gives Streamlit's own row-select checkboxes (left
@@ -503,7 +520,7 @@ if st.session_state.page == "ops":
         if "job_batch" not in st.session_state:
             st.session_state.job_batch = pd.DataFrame([
                 {"Job Name": "My Job", "Nodes": 2000, "Duration (hrs)": 4,
-                 "Deadline (UTC)": (NOW + pd.Timedelta(hours=12)).floor("h")},
+                 "Deadline (ET)": (NOW + pd.Timedelta(hours=12)).floor("h")},
             ])
         edited = st.data_editor(
             st.session_state.job_batch, num_rows="dynamic", use_container_width=True, key="job_editor",
@@ -513,10 +530,10 @@ if st.session_state.page == "ops":
                 "Nodes": st.column_config.NumberColumn("Nodes", min_value=1,
                                                        max_value=kpis["total_nodes"], step=100),
                 "Duration (hrs)": st.column_config.NumberColumn(min_value=1, max_value=24, step=1),
-                "Deadline (UTC)": st.column_config.DatetimeColumn(
-                    "Deadline (UTC)", format="h A, D MMM YYYY", step=3600,
-                    help="Date & hour (UTC) the job must finish by. Optimised within the next "
-                         "48 h (the forecast horizon); later deadlines are capped to 48 h."),
+                "Deadline (ET)": st.column_config.DatetimeColumn(
+                    "Deadline (ET)", format="h A, D MMM YYYY", step=3600,
+                    help="Date & hour (Eastern Time) the job must finish by. Optimised within "
+                         "the next 48 h (the forecast horizon); later deadlines are capped to 48 h."),
             })
 
         # ── Optimise-for control: simple 3-way choice, no slider/percentages ───
@@ -560,9 +577,9 @@ if st.session_state.page == "ops":
             try:
                 n = int(row["Nodes"]); d = int(row["Duration (hrs)"])
                 nm = str(row["Job Name"]) if pd.notna(row["Job Name"]) else ""
-                if pd.isna(row["Deadline (UTC)"]) or n < 1 or d < 1:
+                if pd.isna(row["Deadline (ET)"]) or n < 1 or d < 1:
                     continue
-                deadline_dt = pd.to_datetime(row["Deadline (UTC)"])
+                deadline_dt = pd.to_datetime(row["Deadline (ET)"])
             except (TypeError, ValueError):
                 continue
             res, err = check_job(nm, n, d, deadline_dt)
