@@ -492,6 +492,14 @@ if st.session_state.page == "ops":
         # edge of each row) plus a trash-icon delete control in the grid's own
         # toolbar right next to the "+" add-row control -- no custom column
         # needed; this is the built-in equivalent of "+/- icons near each other".
+        # NOTE: the widget's own key ("job_editor") is the single source of
+        # truth for live edits across reruns -- Streamlit manages that
+        # automatically. We seed st.session_state.job_batch ONCE for the
+        # widget's initial data and never write back into it; doing so
+        # previously fed the editor's own output back in as its "data" prop
+        # every rerun, which made the widget treat that as new external data
+        # and reset its in-progress edit state -- the exact cause of typed
+        # text disappearing and needing to be re-entered.
         if "job_batch" not in st.session_state:
             st.session_state.job_batch = pd.DataFrame([
                 {"Job Name": "My Job", "Nodes": 2000, "Duration (hrs)": 4,
@@ -510,7 +518,6 @@ if st.session_state.page == "ops":
                     help="Date & hour (UTC) the job must finish by. Optimised within the next "
                          "48 h (the forecast horizon); later deadlines are capped to 48 h."),
             })
-        st.session_state.job_batch = edited
 
         # ── Optimise-for control: simple 3-way choice, no slider/percentages ───
         st.markdown("<div style='height:10px;'></div>"
