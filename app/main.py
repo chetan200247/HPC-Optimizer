@@ -164,9 +164,6 @@ st.markdown("""
   .rec-table th {text-align:left; color:#000000; font-weight:800;
                  padding:11px 9px; border-bottom:2px solid #cdd8d1; white-space:nowrap;}
   .rec-table td {padding:12px 9px; border-bottom:1px solid #e6ede8; color:#000000; font-weight:500;}
-
-  /* custom job-row builder */
-  .job-row-hdr {font-weight:800; color:#000000; font-size:0.92rem; padding-bottom:4px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -469,73 +466,29 @@ if st.session_state.page == "ops":
         st.markdown("<div style='color:#000000;font-size:0.85rem;margin-bottom:8px;'>"
                     "All times on this page are in UTC.</div>", unsafe_allow_html=True)
 
-        # ── custom per-row job list: inline ➕ / 🗑 icons, no data_editor ───────
-        if "jobs" not in st.session_state:
-            st.session_state.job_counter = 1
-            default_dl = (NOW + pd.Timedelta(hours=12)).floor("h")
-            st.session_state.jobs = [{
-                "_id": 0, "name": "My Job", "nodes": 2000, "duration": 4,
-                "dl_date": default_dl.date(), "dl_time": default_dl.time(),
-            }]
-
-        def _new_job():
-            default_dl = (NOW + pd.Timedelta(hours=12)).floor("h")
-            jid = st.session_state.job_counter
-            st.session_state.job_counter += 1
-            return {"_id": jid, "name": "My Job", "nodes": 2000, "duration": 4,
-                   "dl_date": default_dl.date(), "dl_time": default_dl.time()}
-
-        hc1, hc2, hc3, hc4, hc5, hc6 = st.columns([0.7, 2.1, 1.1, 1.2, 1.3, 1.0])
-        hc1.markdown("<div class='job-row-hdr'>&nbsp;</div>", unsafe_allow_html=True)
-        hc2.markdown("<div class='job-row-hdr'>Job Name</div>", unsafe_allow_html=True)
-        hc3.markdown("<div class='job-row-hdr'>Nodes</div>", unsafe_allow_html=True)
-        hc4.markdown("<div class='job-row-hdr'>Duration (hrs)</div>", unsafe_allow_html=True)
-        hc5.markdown("<div class='job-row-hdr'>Deadline Date (UTC)</div>", unsafe_allow_html=True)
-        hc6.markdown("<div class='job-row-hdr'>Deadline Hour</div>", unsafe_allow_html=True)
-
-        live_jobs = []
-        insert_after, delete_id = None, None
-        for job in st.session_state.jobs:
-            jid = job["_id"]
-            c1, c2, c3, c4, c5, c6 = st.columns([0.7, 2.1, 1.1, 1.2, 1.3, 1.0])
-            with c1:
-                ic1, ic2 = st.columns(2)
-                if ic1.button("➕", key=f"add_{jid}", help="Add a job below this row"):
-                    insert_after = jid
-                if ic2.button("🗑", key=f"del_{jid}", help="Remove this job"):
-                    delete_id = jid
-            name = c2.text_input("Job Name", value=job["name"], key=f"name_{jid}",
-                                 label_visibility="collapsed")
-            nodes = c3.number_input("Nodes", min_value=1, max_value=kpis["total_nodes"],
-                                    value=job["nodes"], step=100, key=f"nodes_{jid}",
-                                    label_visibility="collapsed")
-            duration = c4.number_input("Duration (hrs)", min_value=1, max_value=24,
-                                       value=job["duration"], step=1, key=f"dur_{jid}",
-                                       label_visibility="collapsed")
-            dl_date = c5.date_input("Deadline Date", value=job["dl_date"], key=f"date_{jid}",
-                                    label_visibility="collapsed")
-            dl_time = c6.time_input("Deadline Hour", value=job["dl_time"], step=3600,
-                                    key=f"time_{jid}", label_visibility="collapsed")
-            live_jobs.append({"_id": jid, "name": name, "nodes": nodes, "duration": duration,
-                             "dl_date": dl_date, "dl_time": dl_time})
-
-        st.session_state.jobs = live_jobs
-        if insert_after is not None:
-            idx = next(i for i, j in enumerate(st.session_state.jobs) if j["_id"] == insert_after)
-            st.session_state.jobs.insert(idx + 1, _new_job())
-            st.rerun()
-        if delete_id is not None:
-            st.session_state.jobs = [j for j in st.session_state.jobs if j["_id"] != delete_id]
-            st.rerun()
-
-        if not st.session_state.jobs:
-            if st.button("➕ Add a job"):
-                st.session_state.jobs.append(_new_job())
-                st.rerun()
-
+        # ── job entry table (data_editor — native add/remove rows) ─────────────
+        if "job_batch" not in st.session_state:
+            st.session_state.job_batch = pd.DataFrame([
+                {"Job Name": "My Job", "Nodes": 2000, "Duration (hrs)": 4,
+                 "Deadline (UTC)": (NOW + pd.Timedelta(hours=12)).floor("h")},
+            ])
+        edited = st.data_editor(
+            st.session_state.job_batch, num_rows="dynamic", use_container_width=True, key="job_editor",
+            column_config={
+                "Job Name": st.column_config.TextColumn(width="medium",
+                                                        help="A label for the job (optional)"),
+                "Nodes": st.column_config.NumberColumn("Nodes", min_value=1,
+                                                       max_value=kpis["total_nodes"], step=100),
+                "Duration (hrs)": st.column_config.NumberColumn(min_value=1, max_value=24, step=1),
+                "Deadline (UTC)": st.column_config.DatetimeColumn(
+                    "Deadline (UTC)", format="h A, D MMM YYYY", step=3600,
+                    help="Date & hour (UTC) the job must finish by. Optimised within the next "
+                         "48 h (the forecast horizon); later deadlines are capped to 48 h."),
+            })
+        st.session_state.job_batch = edited
         st.markdown(
             "<div style='color:#000000;font-size:0.9rem;margin-top:4px;'>"
-            "ⓘ Use ➕ to add a job below the current row, or 🗑 to remove it.</div>",
+            "ⓘ Use the ＋ on the last row to add another job, or 🗑 to remove one.</div>",
             unsafe_allow_html=True)
 
         # ── Optimise-for control: simple 3-way choice, no slider/percentages ───
@@ -575,10 +528,15 @@ if st.session_state.page == "ops":
                        ext_note=ext_note), None
 
         results, skipped = [], []
-        for job in st.session_state.jobs:
-            n, d = int(job["nodes"]), int(job["duration"])
-            nm = job["name"]
-            deadline_dt = pd.Timestamp.combine(job["dl_date"], job["dl_time"])
+        for _, row in edited.iterrows():
+            try:
+                n = int(row["Nodes"]); d = int(row["Duration (hrs)"])
+                nm = str(row["Job Name"]) if pd.notna(row["Job Name"]) else ""
+                if pd.isna(row["Deadline (UTC)"]) or n < 1 or d < 1:
+                    continue
+                deadline_dt = pd.to_datetime(row["Deadline (UTC)"])
+            except (TypeError, ValueError):
+                continue
             res, err = check_job(nm, n, d, deadline_dt)
             if res:
                 results.append(res)
