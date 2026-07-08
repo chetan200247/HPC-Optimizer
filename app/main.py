@@ -840,11 +840,6 @@ elif st.session_state.page == "csrd":
     # ── derived figures used below ─────────────────────────────────────────────
     node_hours_5d = kpis["total_nodes"] * 24 * 5
     intensity_g_per_nodehour = kpis["total_baseline_kg_5d"] * 1000 / node_hours_5d
-    saving_per_node_kg = kpis["annual_realistic_tco2"] * 1000 / kpis["total_nodes"]
-
-    daily = integ.groupby("snapshot_date")["carbon_saved_kg"].sum().reset_index()
-    daily = daily.sort_values("snapshot_date")
-    daily["cumulative_kg"] = daily["carbon_saved_kg"].cumsum()
 
     monthly2 = monthly.copy()
     monthly2["year"] = monthly2["ym"].str[:4].astype(int)
@@ -865,7 +860,7 @@ elif st.session_state.page == "csrd":
             "hours and projected to an annual figure. This is the facility's own demand-side "
             "savings potential from carbon-aware scheduling.")
 
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2, m3 = st.columns(3)
         m1.markdown(card("Projected Annual Saving", f"{kpis['annual_realistic_tco2']}", "tCO₂/yr",
                          sub="Realistic, forecast-driven", icon="🌱"), unsafe_allow_html=True)
         m2.markdown(card("Scope 2 Reduction", f"{kpis['reduction_pct']:.2f}", "%",
@@ -876,61 +871,68 @@ elif st.session_state.page == "csrd":
                               "5-day sample. An intensity ratio, not an absolute total, so it "
                               "stays comparable even if the facility's size or workload changes."),
                    unsafe_allow_html=True)
-        m4.markdown(card("Savings per Node", f"{saving_per_node_kg:.1f}", "kg CO₂/yr",
-                         sub="Projected annual saving ÷ 4,626 nodes", icon="🖥️"),
-                   unsafe_allow_html=True)
 
-        st.markdown("<div style='height:6px;'></div>"
-                    "<div class='section-h' style='font-size:1.05rem;'>Carbon Savings Hierarchy</div>",
-                   unsafe_allow_html=True)
-        st.caption("From theoretical potential to realistic achievable — each constraint reduces the saving. "
-                  "The top tier's error bar shows the sensitivity range if 20–40% (vs. the central 30%) "
-                  "of workload is assumed flexible.")
+        # ── interactive: carbon savings vs assumed flexible-workload share ─────
+        st.markdown("<div style='height:10px;'></div>"
+                    "<div class='section-h' style='font-size:1.05rem;'>Carbon Savings by "
+                    "Flexibility Assumption</div>", unsafe_allow_html=True)
+        st.caption("Move the slider to see projected annual savings at a different assumed "
+                  "flexible-workload share. 20–40% is the range actually validated in the "
+                  "underlying analysis; 30% (default) is the central assumption used elsewhere "
+                  "on this page.")
+        flex_pct = st.slider("Assumed flexible-workload share", 20, 40, 30, step=5,
+                             format="%d%%", key="flex_slider")
+        scale = flex_pct / 30.0
+        adj_unconstrained = kpis["annual_unconstrained_tco2"] * scale
+        adj_ceiling = kpis["annual_ceiling_tco2"] * scale
+        adj_realistic = kpis["annual_realistic_tco2"] * scale
+        if flex_pct == 30:
+            st.markdown(f"<div style='color:#000000;font-weight:700;font-size:1.05rem;'>"
+                       f"At 30% (central assumption): <span style='color:#15803d;'>"
+                       f"{adj_realistic:.0f} tCO₂/yr</span> realistic saving</div>",
+                       unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div style='color:#000000;font-weight:700;font-size:1.05rem;'>"
+                       f"At {flex_pct}%: <span style='color:#15803d;'>{adj_realistic:.0f} tCO₂/yr</span> "
+                       f"realistic saving <span style='font-weight:400;font-size:0.85rem;'>"
+                       f"(vs {kpis['annual_realistic_tco2']} tCO₂/yr at the 30% central assumption)"
+                       f"</span></div>", unsafe_allow_html=True)
         hier = pd.DataFrame({
             "Level": ["Unconstrained potential", "Capacity-aware ceiling", "Realistic forecast-driven"],
-            "tCO2": [kpis["annual_unconstrained_tco2"], kpis["annual_ceiling_tco2"], kpis["annual_realistic_tco2"]],
+            "tCO2": [adj_unconstrained, adj_ceiling, adj_realistic],
         })
         fig = go.Figure(go.Bar(
             x=hier["tCO2"], y=hier["Level"], orientation="h",
             marker_color=[GREY, BLUE, GREEN],
-            error_x=dict(type="data", symmetric=False,
-                        array=[105, 0, 0], arrayminus=[105, 0, 0], color="#000000", thickness=1.5),
-            text=[f"{v} tCO₂/yr" for v in hier["tCO2"]], textposition="outside"))
-        fig.update_layout(height=260, margin=dict(l=10, r=60, t=10, b=10),
-                          xaxis_title="tCO₂ / year", plot_bgcolor="white",
-                          yaxis=dict(autorange="reversed"))
+            text=[f"{v:.0f} tCO₂/yr" for v in hier["tCO2"]], textposition="outside"))
+        fig.update_layout(height=240, margin=dict(l=10, r=60, t=10, b=10),
+                          xaxis=dict(title="tCO₂ / year", range=[0, kpis["annual_unconstrained_tco2"]*1.4]),
+                          plot_bgcolor="white", yaxis=dict(autorange="reversed"))
         st.plotly_chart(fig, use_container_width=True)
+        if flex_pct != 30:
+            st.caption("The unconstrained tier is scaled exactly (verified linear in the underlying "
+                      "data across 20/30/40%). The capacity-aware and realistic tiers are scaled by "
+                      "the same ratio as an illustrative approximation — they were not independently "
+                      "re-run at this flexibility level, since that requires re-solving the "
+                      "capacity-aware optimiser and forecast simulation from scratch.")
 
-        cA, cB = st.columns(2)
-        with cA:
-            st.markdown("<div class='section-h' style='font-size:1.05rem;'>Cumulative Avoided Emissions</div>",
-                       unsafe_allow_html=True)
-            st.caption("Running total across the 5 observed sample days.")
-            fig = go.Figure(go.Scatter(
-                x=daily["snapshot_date"], y=daily["cumulative_kg"], mode="lines+markers",
-                line=dict(color=GREEN, width=3), marker=dict(size=8),
-                fill="tozeroy", fillcolor="rgba(21,128,61,0.10)"))
-            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
-                              xaxis_title="Snapshot date", yaxis_title="Cumulative kg CO₂ avoided",
-                              plot_bgcolor="white")
-            st.plotly_chart(fig, use_container_width=True)
-        with cB:
-            st.markdown("<div class='section-h' style='font-size:1.05rem;'>Baseline vs Optimised "
-                        "— by Hour of Day</div>", unsafe_allow_html=True)
-            st.caption("Average carbon emitted per hour of day, as-is vs. carbon-aware scheduled.")
-            byhr = integ.groupby("hour_of_day").agg(
-                baseline=("baseline_carbon_kg", "mean"),
-                optimised=("optimized_carbon_kg", "mean")).reset_index()
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=byhr["hour_of_day"], y=byhr["baseline"],
-                          name="Baseline", line=dict(color=RED, width=2),
-                          fill="tozeroy", fillcolor="rgba(198,40,40,0.08)"))
-            fig.add_trace(go.Scatter(x=byhr["hour_of_day"], y=byhr["optimised"],
-                          name="Optimised", line=dict(color=GREEN, width=2)))
-            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
-                              xaxis_title="Hour of day", yaxis_title="Avg carbon (kg CO₂)",
-                              plot_bgcolor="white", legend=dict(orientation="h", y=1.15))
-            st.plotly_chart(fig, use_container_width=True)
+        # ── baseline vs optimised across the 5 observed days ────────────────────
+        st.markdown("<div style='height:10px;'></div>"
+                    "<div class='section-h' style='font-size:1.05rem;'>Baseline vs Optimised "
+                    "Carbon Emissions — 5 Observed Days</div>", unsafe_allow_html=True)
+        st.caption("Total carbon emitted on each sample day, as-is vs. carbon-aware scheduled.")
+        byday = integ.groupby("snapshot_date").agg(
+            baseline=("baseline_carbon_kg", "sum"),
+            optimised=("optimized_carbon_kg", "sum")).reset_index()
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=byday["snapshot_date"], y=byday["baseline"],
+                             name="Baseline", marker_color=RED))
+        fig.add_trace(go.Bar(x=byday["snapshot_date"], y=byday["optimised"],
+                             name="Optimised", marker_color=GREEN))
+        fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10), barmode="group",
+                          xaxis_title="Snapshot date", yaxis_title="Total carbon (kg CO₂)",
+                          plot_bgcolor="white", legend=dict(orientation="h", y=1.12))
+        st.plotly_chart(fig, use_container_width=True)
 
     st.write("")
 
