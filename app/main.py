@@ -20,7 +20,6 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import plotly.io as pio
 import requests
 import streamlit as st
 
@@ -29,10 +28,6 @@ try:                                  # optional: load .env for local runs
     load_dotenv()
 except Exception:
     pass
-
-# Larger, near-black default font for every Plotly chart (presentation-ready)
-pio.templates["big"] = go.layout.Template(layout=dict(font=dict(size=15, color="#0b1a12")))
-pio.templates.default = "plotly+big"
 
 # ── Config & palette ──────────────────────────────────────────────────────────
 
@@ -59,77 +54,60 @@ AMBER   = "#F9A825"
 
 st.markdown("""
 <style>
-  /* Global font scale-up for large-screen presentation */
-  html {font-size: 118%;}
-
   .block-container {padding-top: 3rem; padding-bottom: 2rem; max-width: 1560px;}
   [data-testid="stAppViewContainer"] {background: #f5f8f6;}
 
-  /* Force main-area text to near-black (no greys) and a larger base size */
-  [data-testid="stAppViewContainer"] p,
-  [data-testid="stAppViewContainer"] label,
-  [data-testid="stAppViewContainer"] li,
-  [data-testid="stAppViewContainer"] span {color:#0b1a12;}
-  [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * {
-      color:#122318 !important; font-size:1rem !important;}
-
-  /* CSRD KPI tiles (st.metric) — dark and larger */
-  [data-testid="stMetricValue"] {color:#08150d !important; font-weight:800;}
-  [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {
-      color:#122318 !important; font-size:1.05rem !important; font-weight:700;}
-  [data-testid="stMetricDelta"], [data-testid="stMetricDelta"] * {color:#122318 !important;}
-
-  /* Sidebar — dark green (keep light text on dark) */
-  section[data-testid="stSidebar"] {background: #0c2a1a; font-size:1.08rem;}
-  section[data-testid="stSidebar"] * {color: #eef5f0;}
+  /* Sidebar — dark green */
+  section[data-testid="stSidebar"] {background: #0c2a1a;}
+  section[data-testid="stSidebar"] * {color: #e8f0ea;}
   section[data-testid="stSidebar"] button[kind="primary"] {
-      background:#16a34a; border:none; color:#fff; font-weight:700; text-align:left;
-      justify-content:flex-start; border-radius:10px; font-size:1.05rem;}
+      background:#16a34a; border:none; color:#fff; font-weight:600; text-align:left;
+      justify-content:flex-start; border-radius:10px;}
   section[data-testid="stSidebar"] button[kind="secondary"] {
-      background:transparent; border:none; color:#cfe6d7; font-weight:600; text-align:left;
-      justify-content:flex-start; border-radius:10px; font-size:1.05rem;}
+      background:transparent; border:none; color:#bcd5c5; font-weight:500; text-align:left;
+      justify-content:flex-start; border-radius:10px;}
   section[data-testid="stSidebar"] button[kind="secondary"]:hover {background:#123d27;}
 
   /* Green primary buttons in the main area */
   [data-testid="stAppViewContainer"] button[kind="primary"] {background:#16a34a; border-color:#16a34a;}
 
   /* Page header */
-  .page-title {font-size:2.5rem; font-weight:800; color:#08150d; line-height:1.2;
+  .page-title {font-size:1.9rem; font-weight:800; color:#12261c; line-height:1.25;
                padding-top:2px;}
-  .page-sub {font-size:1.25rem; color:#122318; margin-top:4px;}
-  .fresh {text-align:right; font-size:1.02rem; color:#08150d; font-weight:700;}
-  .fresh-dot {height:10px; width:10px; border-radius:50%; background:#22c55e;
+  .page-sub {font-size:0.95rem; color:#5b6b62; margin-top:2px;}
+  .fresh {text-align:right; font-size:0.82rem; color:#5b6b62; font-weight:600;}
+  .fresh-dot {height:8px; width:8px; border-radius:50%; background:#22c55e;
               display:inline-block; margin-right:6px;}
 
   /* Metric cards */
-  .metric-card {background:#fff; border:1px solid #dbe3de; border-radius:14px;
-                padding:18px 20px; box-shadow:0 1px 3px rgba(0,0,0,0.06);
-                height:100%; min-height:150px;}
-  .section-h {font-size:1.6rem; font-weight:800; color:#08150d; margin:4px 0 14px 0;}
-  .section-h .sub {font-weight:600; color:#1d3327; font-size:1.15rem;}
-  .mc-info {cursor:help; color:#2f4a3b; font-size:1rem; margin-left:5px;}
-  .mc-label {font-size:1.1rem; color:#0b1a12; font-weight:700;
+  .metric-card {background:#fff; border:1px solid #e6ebe8; border-radius:14px;
+                padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.04);
+                height:100%; min-height:132px;}
+  .section-h {font-size:1.15rem; font-weight:800; color:#12261c; margin:2px 0 12px 0;}
+  .section-h .sub {font-weight:500; color:#7a8a80; font-size:0.9rem;}
+  .mc-info {cursor:help; color:#b3bdb6; font-size:0.85rem; margin-left:4px;}
+  .mc-label {font-size:0.82rem; color:#5b6b62; font-weight:600;
              display:flex; gap:6px; align-items:center;}
-  .mc-value {font-weight:800; color:#08150d; line-height:1.1; margin-top:10px;}
-  .mc-unit  {font-size:1.05rem; color:#0b1a12; font-weight:700;}
-  .mc-sub   {font-size:1rem; color:#122318; margin-top:10px;}
-  .up {color:#0f6a2f; font-weight:800;}
+  .mc-value {font-weight:800; color:#12261c; line-height:1.1; margin-top:8px;}
+  .mc-unit  {font-size:0.9rem; color:#5b6b62; font-weight:600;}
+  .mc-sub   {font-size:0.78rem; color:#7a8a80; margin-top:8px;}
+  .up {color:#15803d; font-weight:700;}
 
-  .badge {display:inline-block; padding:3px 14px; border-radius:999px;
-          font-size:0.95rem; font-weight:800; margin-top:12px;}
-  .badge-green {background:#dcfce7; color:#0f6a2f;}
-  .badge-amber {background:#fef3c7; color:#9a4a08;}
-  .badge-red   {background:#fee2e2; color:#a01818;}
+  .badge {display:inline-block; padding:2px 12px; border-radius:999px;
+          font-size:0.74rem; font-weight:700; margin-top:10px;}
+  .badge-green {background:#dcfce7; color:#15803d;}
+  .badge-amber {background:#fef3c7; color:#b45309;}
+  .badge-red   {background:#fee2e2; color:#b91c1c;}
 
-  .tg-num {font-size:1.75rem; font-weight:800; color:#08150d; line-height:1.1;}
-  .tg-lbl {font-size:1rem; color:#122318; margin-top:3px; font-weight:600;}
+  .tg-num {font-size:1.3rem; font-weight:800; color:#12261c; line-height:1.1;}
+  .tg-lbl {font-size:0.72rem; color:#5b6b62; margin-top:2px;}
 
   /* Recommended-schedule table */
-  .rec-table {width:100%; border-collapse:collapse; font-size:1.08rem;}
-  .rec-table th {text-align:left; color:#08150d; font-weight:800;
-                 padding:12px 10px; border-bottom:2px solid #cbd6cf; white-space:nowrap;}
-  .rec-table td {padding:13px 10px; border-bottom:1px solid #e3eae5; color:#0b1a12; font-weight:500;}
-  .status-dot {height:10px; width:10px; border-radius:50%; display:inline-block; margin-right:6px;}
+  .rec-table {width:100%; border-collapse:collapse; font-size:0.85rem;}
+  .rec-table th {text-align:left; color:#5b6b62; font-weight:600;
+                 padding:10px 8px; border-bottom:1px solid #e6ebe8; white-space:nowrap;}
+  .rec-table td {padding:11px 8px; border-bottom:1px solid #f0f3f1; color:#22332a;}
+  .status-dot {height:8px; width:8px; border-radius:50%; display:inline-block; margin-right:6px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -377,7 +355,7 @@ if st.session_state.page == "ops":
             src = "<span style='color:#15803d;font-weight:700;'>Live · TVA grid</span>"; dot = "background:#22c55e;"
         else:
             src = "<span style='color:#b45309;font-weight:700;'>Demo data</span>"; dot = "background:#f59e0b;"
-        reading = (f"<div style='text-align:right;font-size:0.95rem;color:#122318;margin-top:3px;'>"
+        reading = (f"<div style='text-align:right;font-size:0.74rem;color:#9aa5a0;margin-top:2px;'>"
                    f"Latest TVA reading: {LATEST_TS} UTC</div>") if (DATA_SOURCE == "live" and LATEST_TS) else ""
         st.markdown(
             f"<div class='fresh'><span class='fresh-dot' style='{dot}'></span>"
@@ -452,7 +430,7 @@ if st.session_state.page == "ops":
         weight = (100 - opt) / 100.0   # carbon weight
         l1, l2 = st.columns([1, 1])
         l1.caption("⬅ More carbon savings")
-        l2.markdown("<div style='text-align:right;color:#122318;font-size:1rem;font-weight:600;'>"
+        l2.markdown("<div style='text-align:right;color:#7a8a80;font-size:0.85rem;'>"
                     "More cost savings ➡</div>", unsafe_allow_html=True)
 
         # ── schedule ──────────────────────────────────────────────────────────
@@ -552,16 +530,16 @@ if st.session_state.page == "ops":
 
         a, b, c, d = st.columns(4)
         a.markdown(card("Current Grid CI", f"{current_ci:.0f}", "gCO₂/kWh",
-                        badge=z_lab, badge_cls=z_cls, sub=z_sub, icon="☁️", value_size="2.1rem",
+                        badge=z_lab, badge_cls=z_cls, sub=z_sub, icon="☁️", value_size="1.7rem",
                         info="Live TVA grid carbon intensity from the EIA API"),
                    unsafe_allow_html=True)
         b.markdown(card("Electricity Price", f"${price_now:.2f}", "/MWh",
                         badge=p_lab, badge_cls=p_cls, sub=f"Price tier: {p_tier} of 3",
-                        icon="💲", value_size="2rem",
+                        icon="💲", value_size="1.6rem",
                         info="Representative Time-of-Use tariff (modelled)"),
                    unsafe_allow_html=True)
         c.markdown(card("Next Green Window", fmt_clock(gw_time).split(", ")[1], "",
-                        sub=f"in {green_idx}h ({gw_dur}h window)", icon="🌱", value_size="1.85rem",
+                        sub=f"in {green_idx}h ({gw_dur}h window)", icon="🌱", value_size="1.5rem",
                         info="Next sustained low-carbon period in the 48h forecast"),
                    unsafe_allow_html=True)
         d.markdown(
@@ -596,12 +574,11 @@ if st.session_state.page == "ops":
         fig.add_vline(x=green_idx, line=dict(color=GREEN, dash="dash"),
                       annotation_text="Next green window", annotation_position="top")
         fig.update_layout(
-            height=430, margin=dict(l=10, r=10, t=30, b=10),
-            font=dict(size=16, color="#0b1a12"),
+            height=380, margin=dict(l=10, r=10, t=30, b=10),
             xaxis=dict(title="Hours ahead", dtick=6),
             yaxis=dict(title="gCO₂/kWh"),
             yaxis2=dict(title="$/MWh", overlaying="y", side="right", showgrid=False),
-            legend=dict(orientation="h", y=1.12, x=0, font=dict(size=15)), plot_bgcolor="white")
+            legend=dict(orientation="h", y=1.12, x=0), plot_bgcolor="white")
         st.plotly_chart(fig, use_container_width=True)
 
     st.write("")
