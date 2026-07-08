@@ -36,9 +36,10 @@ try:                                  # optional: load .env for local runs
 except Exception:
     pass
 
-# Slightly larger, dark, Times New Roman default font for every Plotly chart
+# Slightly larger, black, Times New Roman default font for every Plotly chart
+# (covers axis titles, tick labels, and legend text via inheritance)
 pio.templates["big"] = go.layout.Template(layout=dict(
-    font=dict(size=14, color="#0f1f16", family='"Times New Roman", Times, serif')))
+    font=dict(size=14, color="#000000", family='"Times New Roman", Times, serif')))
 pio.templates.default = "plotly+big"
 
 # ── Config & palette ──────────────────────────────────────────────────────────
