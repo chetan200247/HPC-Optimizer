@@ -852,12 +852,6 @@ elif st.session_state.page == "csrd":
     grid_trend_abs = yearly_ci.iloc[-1] - yearly_ci.iloc[0]
     grid_trend_pct = grid_trend_abs / yearly_ci.iloc[0] * 100
 
-    EMISSION_FACTOR_TABLE = [
-        ("Coal", 1000, "Fossil"), ("Petroleum", 800, "Fossil"), ("Natural Gas", 450, "Fossil"),
-        ("Other", 500, "Mixed"), ("Nuclear", 0, "Zero-carbon"), ("Hydro", 0, "Zero-carbon"),
-        ("Wind", 0, "Zero-carbon"), ("Solar", 0, "Zero-carbon"),
-    ]
-
     # ══════════════════════════════════════════════════════════════════════════
     #  SECTION A · ORNL SUMMIT — FACILITY SAVINGS (5-DAY SAMPLE)
     # ══════════════════════════════════════════════════════════════════════════
@@ -1011,44 +1005,21 @@ elif st.session_state.page == "csrd":
 
     st.write("")
 
-    # ══════════════════════════════════════════════════════════════════════════
-    #  SECTION C · METHODOLOGY & AUDIT TRAIL
-    # ══════════════════════════════════════════════════════════════════════════
-    with st.container(border=True):
-        st.markdown("<div class='section-h'>🔍 Methodology &amp; Audit Trail</div>", unsafe_allow_html=True)
-        st.markdown(
-            "<div style='color:#000000;font-size:0.92rem;line-height:1.6;margin-bottom:12px;'>"
-            "<b>Reporting boundary:</b> Scope 2 (purchased electricity), location-based method "
-            "only — no market-based instruments (PPAs/RECs) are in scope. Single facility "
-            "(ORNL Summit); excludes Scope 1 (none applicable — no on-site combustion) and "
-            "Scope 3 (not modelled). The annual saving figure is a projection from a 5-day "
-            "observed sample, not a full-year measurement.</div>", unsafe_allow_html=True)
-
-        st.markdown("<div class='section-h' style='font-size:1rem;'>Emission Factors Used</div>",
-                   unsafe_allow_html=True)
-        ef_rows = "".join(
-            f"<tr><td>{fname}</td><td>{ef} gCO₂/kWh</td><td>{cat}</td></tr>"
-            for fname, ef, cat in EMISSION_FACTOR_TABLE)
-        st.markdown(
-            "<div style='overflow-x:auto;'><table class='rec-table'><thead><tr>"
-            "<th>Fuel</th><th>Emission Factor</th><th>Category</th>"
-            "</tr></thead><tbody>" + ef_rows + "</tbody></table></div>",
-            unsafe_allow_html=True)
-
-        st.markdown(
-            "<div style='color:#000000;font-size:0.88rem;margin-top:12px;'>"
-            "<b>Data quality:</b> ORNL Summit telemetry ~99.98% complete (direct hardware "
-            "measurement, not estimated); TVA/EIA generation data ~99.6% complete (mandatory "
-            "FERC Order 830 reporting, direct measurement). Both cross-validated against "
-            "source documentation.</div>", unsafe_allow_html=True)
-
-        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-        csv = integ.to_csv(index=False).encode()
-        st.download_button("📥 Download carbon audit report (CSV)", csv,
-                           "csrd_carbon_audit.csv", "text/csv")
-        st.caption("Methodology: IPCC AR5-style lifecycle emission factors · capacity-aware "
-                  "load-shifting LP · 30% flexible-workload central assumption "
-                  "(sensitivity range 20–40%, shown on the Savings Hierarchy chart above).")
+    # ── Footnote: methodology/audit detail moved off-page into a downloadable PDF ──
+    st.markdown("---")
+    fn1, fn2, fn3 = st.columns([3, 1, 1])
+    fn1.markdown(
+        "<div style='color:#000000;font-size:0.85rem;'>"
+        "Reporting boundary, emission factors, and data-quality provenance are documented in "
+        "the downloadable methodology &amp; audit trail below.</div>", unsafe_allow_html=True)
+    methodology_pdf = DATA.parent.parent / "docs" / "report" / "CSRD_Methodology_Audit_Trail.pdf"
+    if methodology_pdf.exists():
+        fn2.download_button("📄 Methodology (PDF)", methodology_pdf.read_bytes(),
+                            "CSRD_Methodology_Audit_Trail.pdf", "application/pdf",
+                            use_container_width=True)
+    csv = integ.to_csv(index=False).encode()
+    fn3.download_button("📥 Audit data (CSV)", csv, "csrd_carbon_audit.csv", "text/csv",
+                        use_container_width=True)
 
 
 st.markdown("---")
