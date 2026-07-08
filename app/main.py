@@ -466,15 +466,19 @@ if st.session_state.page == "ops":
         st.markdown("<div style='color:#000000;font-size:0.85rem;margin-bottom:8px;'>"
                     "All times on this page are in UTC.</div>", unsafe_allow_html=True)
 
-        # ── job entry table (data_editor — native add/remove rows) ─────────────
+        # ── job entry table (data_editor — native add rows; checkbox to delete) ─
         if "job_batch" not in st.session_state:
             st.session_state.job_batch = pd.DataFrame([
-                {"Job Name": "My Job", "Nodes": 2000, "Duration (hrs)": 4,
+                {"Remove?": False, "Job Name": "My Job", "Nodes": 2000, "Duration (hrs)": 4,
                  "Deadline (UTC)": (NOW + pd.Timedelta(hours=12)).floor("h")},
             ])
         edited = st.data_editor(
             st.session_state.job_batch, num_rows="dynamic", use_container_width=True, key="job_editor",
+            column_order=["Remove?", "Job Name", "Nodes", "Duration (hrs)", "Deadline (UTC)"],
             column_config={
+                "Remove?": st.column_config.CheckboxColumn(
+                    "🗑", default=False, width="small",
+                    help="Tick, then click 'Delete selected rows' below to remove this job."),
                 "Job Name": st.column_config.TextColumn(width="medium",
                                                         help="A label for the job (optional)"),
                 "Nodes": st.column_config.NumberColumn("Nodes", min_value=1,
@@ -486,9 +490,23 @@ if st.session_state.page == "ops":
                          "48 h (the forecast horizon); later deadlines are capped to 48 h."),
             })
         st.session_state.job_batch = edited
-        st.markdown(
-            "<div style='color:#000000;font-size:0.9rem;margin-top:4px;'>"
-            "ⓘ Use the ＋ on the last row to add another job, or 🗑 to remove one.</div>",
+
+        bcol1, bcol2 = st.columns([1, 5])
+        # .astype(bool) is required: a freshly-added blank row can leave this
+        # column as None before Streamlit backfills its default, which makes
+        # the column object-dtype -- "~" on an object-dtype column of True/
+        # False/None does bitwise-NOT on booleans-as-ints (~True == -2), not
+        # logical negation, and silently produces a bad indexer. Verified by
+        # reproducing the crash and confirming this fix before shipping it.
+        remove_mask = edited["Remove?"].fillna(False).astype(bool) if "Remove?" in edited else pd.Series(False, index=edited.index)
+        n_marked = int(remove_mask.sum())
+        if bcol1.button(f"🗑 Delete selected rows ({n_marked})", disabled=n_marked == 0):
+            st.session_state.job_batch = edited[~remove_mask].reset_index(drop=True)
+            st.rerun()
+        bcol2.markdown(
+            "<div style='color:#000000;font-size:0.9rem;padding-top:8px;'>"
+            "ⓘ Tick 🗑 in the first column to mark a job for removal, then click Delete. "
+            "Use the ＋ on the last row to add another job.</div>",
             unsafe_allow_html=True)
 
         # ── Optimise-for control: simple 3-way choice, no slider/percentages ───
