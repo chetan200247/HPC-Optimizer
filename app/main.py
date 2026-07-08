@@ -441,7 +441,7 @@ st.sidebar.markdown(
 if st.session_state.page == "ops":
 
     # ── Header (title · freshness+reading · refresh) ──────────────────────────
-    h1, h2, h3 = st.columns([6, 3, 1], vertical_alignment="center")
+    h1, h2, h3 = st.columns([5.5, 2.5, 2], vertical_alignment="center")
     with h1:
         st.markdown("<div class='page-title'>Operations Manager</div>", unsafe_allow_html=True)
     with h2:
@@ -455,10 +455,10 @@ if st.session_state.page == "ops":
         tooltip = f"Data as of {fmt_stamp(NOW)} UTC"
         if DATA_SOURCE == "live" and LATEST_TS:
             tooltip += f"<br>Latest TVA reading: {LATEST_TS} UTC"
-        ic, bc = st.columns([1, 5], vertical_alignment="center")
+        ic, bc = st.columns([1, 4], vertical_alignment="center")
         ic.markdown(
             "<div style='display:flex;align-items:center;justify-content:center;"
-            "height:2.5rem;margin-right:-6px;'>"
+            "height:2.5rem;'>"
             f"<span class='tooltip-wrap' style='font-size:1.15rem;color:#000000;'>ⓘ"
             f"<span class='tooltip-body'>{tooltip}</span></span></div>",
             unsafe_allow_html=True)
