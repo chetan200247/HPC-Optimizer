@@ -394,7 +394,9 @@ def find_recommended_windows(nodes, duration, deadline_hours, ci, price, weight,
 def card(label, value, unit="", sub="", icon="", value_size="1.9rem", info="", center=False):
     s = f'<div class="mc-sub">{sub}</div>' if sub else ""
     u = f'<span class="mc-unit">{unit}</span>' if unit else ""
-    i = f'<span class="mc-info" title="{info}">ⓘ</span>' if info else ""
+    i = (f'<span class="tooltip-wrap" style="font-size:0.9rem;color:#000000;">ⓘ'
+         f'<span class="tooltip-body" style="white-space:normal;max-width:240px;">{info}'
+         f'</span></span>') if info else ""
     cls = "metric-card center" if center else "metric-card"
     return (f'<div class="{cls}"><div class="mc-label">{icon} {label}{i}</div>'
             f'<div class="mc-value" style="font-size:{value_size};">{value} {u}</div>'
@@ -474,11 +476,13 @@ if st.session_state.page == "ops":
     with st.container(border=True):
         st.markdown(
             "<div class='section-h'>🗓️ Schedule Flexible Jobs"
-            "<span class='mc-info' title=\"Enter one or more delay-tolerant jobs to see every "
-            "viable start window before each deadline, ranked by carbon and cost saved versus "
-            "running now. This is a recommendation only — it has no visibility into your job "
-            "scheduler's real queue or node availability, and does not reserve or submit "
-            "anything. Each job is checked independently against the grid forecast.\">ⓘ</span>"
+            "<span class='tooltip-wrap' style='font-size:0.9rem;color:#000000;margin-left:2px;'>ⓘ"
+            "<span class='tooltip-body' style='white-space:normal;width:320px;left:0;right:auto;"
+            "font-weight:400;'>Enter one or more delay-tolerant jobs to see every viable start "
+            "window before each deadline, ranked by carbon and cost saved versus running now. "
+            "This is a recommendation only — it has no visibility into your job scheduler's real "
+            "queue or node availability, and does not reserve or submit anything. Each job is "
+            "checked independently against the grid forecast.</span></span>"
             "</div>", unsafe_allow_html=True)
         st.markdown("<div style='color:#000000;font-size:0.85rem;margin-bottom:8px;'>"
                     "All times on this page are in UTC.</div>", unsafe_allow_html=True)
