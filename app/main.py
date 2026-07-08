@@ -861,12 +861,18 @@ elif st.session_state.page == "csrd":
             "hours and projected to an annual figure. This is the facility's own demand-side "
             "savings potential from carbon-aware scheduling.")
 
-        m1, m2, m3 = st.columns(3)
+        m1, m2, m3, m4 = st.columns(4)
         m1.markdown(card("Projected Annual Saving", f"{kpis['annual_realistic_tco2']}", "tCO₂/yr",
                          sub="Realistic, forecast-driven", icon="🌱"), unsafe_allow_html=True)
         m2.markdown(card("Scope 2 Reduction", f"{kpis['reduction_pct']:.2f}", "%",
                          sub="5-day observed", icon="📉"), unsafe_allow_html=True)
-        m3.markdown(card("Baseline Emissions Intensity", f"{intensity_g_per_nodehour:.0f}", "gCO₂/node-hr",
+        m3.markdown(card("Total Carbon Emission", f"{kpis['total_baseline_kg_5d']:,.0f}", "kg CO₂",
+                         sub="As-is baseline, across all 5 sample days", icon="🏭",
+                         info="Sum of baseline (as-is, unscheduled) emissions across all 120 "
+                              "node-hours in the 5-day sample — the reference total that the "
+                              "savings figures above are measured against."),
+                   unsafe_allow_html=True)
+        m4.markdown(card("Baseline Emissions Intensity", f"{intensity_g_per_nodehour:.0f}", "gCO₂/node-hr",
                          sub="Normalised — comparable across time/scale", icon="⚙️",
                          info="Total baseline emissions divided by total node-hours over the "
                               "5-day sample. An intensity ratio, not an absolute total, so it "
