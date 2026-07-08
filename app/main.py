@@ -110,7 +110,7 @@ st.markdown("""
   /* Sidebar — dark green, shifted up, light text on dark */
   section[data-testid="stSidebar"] {background: #0c2a1a; font-size:1.05rem;}
   section[data-testid="stSidebar"] * {color: #eef5f0;}
-  [data-testid="stSidebarUserContent"] {padding-top: 1.2rem;}
+  [data-testid="stSidebarUserContent"] {padding-top: 0.3rem;}
   section[data-testid="stSidebar"] button[kind="primary"] {
       background:#16a34a; border:none; color:#fff; font-weight:700; text-align:left;
       justify-content:flex-start; border-radius:10px;}
@@ -400,7 +400,7 @@ if "page" not in st.session_state:
     st.session_state.page = "ops"
 
 st.sidebar.markdown(
-    "<div style='display:flex;align-items:center;gap:10px;padding:0px 4px 14px 4px;'>"
+    "<div style='display:flex;align-items:center;gap:10px;padding:0px 4px 10px 4px;margin-top:0;'>"
     "<span style='font-size:1.6rem;'>🌿</span>"
     "<span style='font-size:1.15rem;font-weight:800;line-height:1.1;'>Carbon-Aware<br>Scheduling</span>"
     "</div>", unsafe_allow_html=True)
