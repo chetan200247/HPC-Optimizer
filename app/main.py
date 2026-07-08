@@ -439,13 +439,16 @@ if st.session_state.page == "ops":
             src = "<span style='color:#15803d;font-weight:700;'>Live · TVA grid</span>"; dot = "background:#22c55e;"
         else:
             src = "<span style='color:#b45309;font-weight:700;'>Demo data</span>"; dot = "background:#f59e0b;"
-        line1 = f"<div class='fresh'><span class='fresh-dot' style='{dot}'></span>{src}</div>"
-        line2 = f"<div class='fresh' style='margin-top:3px;'>Data as of {fmt_stamp(NOW)} UTC</div>"
-        line3 = (f"<div class='fresh' style='margin-top:3px;font-weight:400;'>"
-                f"Latest TVA reading: {LATEST_TS} UTC</div>") if (DATA_SOURCE == "live" and LATEST_TS) else ""
-        st.markdown(line1 + line2 + line3, unsafe_allow_html=True)
+        st.markdown(f"<div class='fresh'><span class='fresh-dot' style='{dot}'></span>{src}</div>",
+                   unsafe_allow_html=True)
     with h3:
-        if st.button("🔄 Refresh", key="refresh", use_container_width=True):
+        tooltip = f"Data as of {fmt_stamp(NOW)} UTC"
+        if DATA_SOURCE == "live" and LATEST_TS:
+            tooltip += f"&#10;Latest TVA reading: {LATEST_TS} UTC"
+        ic, bc = st.columns([1, 5], vertical_alignment="center")
+        ic.markdown(f"<span class='mc-info' style='font-size:1.15rem;' title=\"{tooltip}\">ⓘ</span>",
+                   unsafe_allow_html=True)
+        if bc.button("🔄 Refresh", key="refresh", use_container_width=True):
             st.session_state.last_refresh = pd.Timestamp.now(tz="UTC").tz_localize(None)
             st.cache_data.clear(); st.rerun()
 
