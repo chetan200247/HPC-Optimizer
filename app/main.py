@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import plotly.io as pio
 import requests
 import streamlit as st
 
@@ -28,6 +29,10 @@ try:                                  # optional: load .env for local runs
     load_dotenv()
 except Exception:
     pass
+
+# Slightly larger, dark default font for every Plotly chart
+pio.templates["big"] = go.layout.Template(layout=dict(font=dict(size=14, color="#0f1f16")))
+pio.templates.default = "plotly+big"
 
 # ── Config & palette ──────────────────────────────────────────────────────────
 
@@ -54,17 +59,34 @@ AMBER   = "#F9A825"
 
 st.markdown("""
 <style>
+  /* Moderate global font increase */
+  html {font-size: 108%;}
+
   .block-container {padding-top: 3rem; padding-bottom: 2rem; max-width: 1560px;}
   [data-testid="stAppViewContainer"] {background: #f5f8f6;}
 
-  /* Sidebar — dark green */
-  section[data-testid="stSidebar"] {background: #0c2a1a;}
-  section[data-testid="stSidebar"] * {color: #e8f0ea;}
+  /* Main-area body text: dark (no greys) */
+  [data-testid="stAppViewContainer"] p,
+  [data-testid="stAppViewContainer"] label,
+  [data-testid="stAppViewContainer"] li,
+  [data-testid="stAppViewContainer"] span {color:#0f1f16;}
+  [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * {
+      color:#233a2e !important; font-size:0.95rem !important;}
+
+  /* CSRD KPI tiles (st.metric): value bold + large, label dark */
+  [data-testid="stMetricValue"] {color:#0a1710 !important; font-weight:800; font-size:2.1rem;}
+  [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {
+      color:#1c2c24 !important; font-weight:700; font-size:1rem !important;}
+  [data-testid="stMetricDelta"], [data-testid="stMetricDelta"] * {color:#1c2c24 !important;}
+
+  /* Sidebar — dark green (keep light text on dark) */
+  section[data-testid="stSidebar"] {background: #0c2a1a; font-size:1.05rem;}
+  section[data-testid="stSidebar"] * {color: #eef5f0;}
   section[data-testid="stSidebar"] button[kind="primary"] {
-      background:#16a34a; border:none; color:#fff; font-weight:600; text-align:left;
+      background:#16a34a; border:none; color:#fff; font-weight:700; text-align:left;
       justify-content:flex-start; border-radius:10px;}
   section[data-testid="stSidebar"] button[kind="secondary"] {
-      background:transparent; border:none; color:#bcd5c5; font-weight:500; text-align:left;
+      background:transparent; border:none; color:#cfe6d7; font-weight:600; text-align:left;
       justify-content:flex-start; border-radius:10px;}
   section[data-testid="stSidebar"] button[kind="secondary"]:hover {background:#123d27;}
 
@@ -72,42 +94,44 @@ st.markdown("""
   [data-testid="stAppViewContainer"] button[kind="primary"] {background:#16a34a; border-color:#16a34a;}
 
   /* Page header */
-  .page-title {font-size:1.9rem; font-weight:800; color:#12261c; line-height:1.25;
-               padding-top:2px;}
-  .page-sub {font-size:0.95rem; color:#5b6b62; margin-top:2px;}
-  .fresh {text-align:right; font-size:0.82rem; color:#5b6b62; font-weight:600;}
-  .fresh-dot {height:8px; width:8px; border-radius:50%; background:#22c55e;
+  .page-title {font-size:2.15rem; font-weight:800; color:#0a1710; line-height:1.2; padding-top:2px;}
+  .page-sub {font-size:1.05rem; color:#233a2e; margin-top:3px;}
+  .fresh {text-align:right; font-size:0.9rem; color:#0a1710; font-weight:700;}
+  .fresh-dot {height:9px; width:9px; border-radius:50%; background:#22c55e;
               display:inline-block; margin-right:6px;}
 
-  /* Metric cards */
-  .metric-card {background:#fff; border:1px solid #e6ebe8; border-radius:14px;
-                padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.04);
-                height:100%; min-height:132px;}
-  .section-h {font-size:1.15rem; font-weight:800; color:#12261c; margin:2px 0 12px 0;}
-  .section-h .sub {font-weight:500; color:#7a8a80; font-size:0.9rem;}
-  .mc-info {cursor:help; color:#b3bdb6; font-size:0.85rem; margin-left:4px;}
-  .mc-label {font-size:0.82rem; color:#5b6b62; font-weight:600;
+  /* Metric cards — equal height for clean alignment */
+  .metric-card {background:#fff; border:1px solid #dfe6e1; border-radius:14px;
+                padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+                height:100%; min-height:142px;}
+  .section-h {font-size:1.35rem; font-weight:800; color:#0a1710; margin:3px 0 12px 0;}
+  .section-h .sub {font-weight:600; color:#233a2e; font-size:1rem;}
+  .mc-info {cursor:help; color:#3a5145; font-size:0.9rem; margin-left:5px;}
+  /* label = supporting text (smaller) */
+  .mc-label {font-size:1rem; color:#1c2c24; font-weight:600;
              display:flex; gap:6px; align-items:center;}
-  .mc-value {font-weight:800; color:#12261c; line-height:1.1; margin-top:8px;}
-  .mc-unit  {font-size:0.9rem; color:#5b6b62; font-weight:600;}
-  .mc-sub   {font-size:0.78rem; color:#7a8a80; margin-top:8px;}
-  .up {color:#15803d; font-weight:700;}
+  /* value = the metric (bold + largest) */
+  .mc-value {font-weight:800; color:#0a1710; line-height:1.1; margin-top:8px;}
+  .mc-unit  {font-size:0.95rem; color:#1c2c24; font-weight:700;}
+  .mc-sub   {font-size:0.88rem; color:#233a2e; margin-top:8px;}
+  .up {color:#0f6a2f; font-weight:800;}
 
-  .badge {display:inline-block; padding:2px 12px; border-radius:999px;
-          font-size:0.74rem; font-weight:700; margin-top:10px;}
-  .badge-green {background:#dcfce7; color:#15803d;}
-  .badge-amber {background:#fef3c7; color:#b45309;}
-  .badge-red   {background:#fee2e2; color:#b91c1c;}
+  .badge {display:inline-block; padding:3px 13px; border-radius:999px;
+          font-size:0.85rem; font-weight:800; margin-top:10px;}
+  .badge-green {background:#dcfce7; color:#0f6a2f;}
+  .badge-amber {background:#fef3c7; color:#9a4a08;}
+  .badge-red   {background:#fee2e2; color:#a01818;}
 
-  .tg-num {font-size:1.3rem; font-weight:800; color:#12261c; line-height:1.1;}
-  .tg-lbl {font-size:0.72rem; color:#5b6b62; margin-top:2px;}
+  /* metric numbers in cluster / today cards — bold + large */
+  .tg-num {font-size:1.55rem; font-weight:800; color:#0a1710; line-height:1.1;}
+  .tg-lbl {font-size:0.9rem; color:#233a2e; margin-top:2px; font-weight:600;}
 
   /* Recommended-schedule table */
-  .rec-table {width:100%; border-collapse:collapse; font-size:0.85rem;}
-  .rec-table th {text-align:left; color:#5b6b62; font-weight:600;
-                 padding:10px 8px; border-bottom:1px solid #e6ebe8; white-space:nowrap;}
-  .rec-table td {padding:11px 8px; border-bottom:1px solid #f0f3f1; color:#22332a;}
-  .status-dot {height:8px; width:8px; border-radius:50%; display:inline-block; margin-right:6px;}
+  .rec-table {width:100%; border-collapse:collapse; font-size:0.98rem;}
+  .rec-table th {text-align:left; color:#0a1710; font-weight:800;
+                 padding:11px 9px; border-bottom:2px solid #cdd8d1; white-space:nowrap;}
+  .rec-table td {padding:12px 9px; border-bottom:1px solid #e6ede8; color:#132018; font-weight:500;}
+  .status-dot {height:9px; width:9px; border-radius:50%; display:inline-block; margin-right:6px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -355,7 +379,7 @@ if st.session_state.page == "ops":
             src = "<span style='color:#15803d;font-weight:700;'>Live · TVA grid</span>"; dot = "background:#22c55e;"
         else:
             src = "<span style='color:#b45309;font-weight:700;'>Demo data</span>"; dot = "background:#f59e0b;"
-        reading = (f"<div style='text-align:right;font-size:0.74rem;color:#9aa5a0;margin-top:2px;'>"
+        reading = (f"<div style='text-align:right;font-size:0.9rem;color:#233a2e;margin-top:3px;'>"
                    f"Latest TVA reading: {LATEST_TS} UTC</div>") if (DATA_SOURCE == "live" and LATEST_TS) else ""
         st.markdown(
             f"<div class='fresh'><span class='fresh-dot' style='{dot}'></span>"
@@ -430,7 +454,7 @@ if st.session_state.page == "ops":
         weight = (100 - opt) / 100.0   # carbon weight
         l1, l2 = st.columns([1, 1])
         l1.caption("⬅ More carbon savings")
-        l2.markdown("<div style='text-align:right;color:#7a8a80;font-size:0.85rem;'>"
+        l2.markdown("<div style='text-align:right;color:#233a2e;font-size:0.95rem;font-weight:600;'>"
                     "More cost savings ➡</div>", unsafe_allow_html=True)
 
         # ── schedule ──────────────────────────────────────────────────────────
@@ -530,16 +554,16 @@ if st.session_state.page == "ops":
 
         a, b, c, d = st.columns(4)
         a.markdown(card("Current Grid CI", f"{current_ci:.0f}", "gCO₂/kWh",
-                        badge=z_lab, badge_cls=z_cls, sub=z_sub, icon="☁️", value_size="1.7rem",
+                        badge=z_lab, badge_cls=z_cls, sub=z_sub, icon="☁️", value_size="1.95rem",
                         info="Live TVA grid carbon intensity from the EIA API"),
                    unsafe_allow_html=True)
         b.markdown(card("Electricity Price", f"${price_now:.2f}", "/MWh",
                         badge=p_lab, badge_cls=p_cls, sub=f"Price tier: {p_tier} of 3",
-                        icon="💲", value_size="1.6rem",
+                        icon="💲", value_size="1.85rem",
                         info="Representative Time-of-Use tariff (modelled)"),
                    unsafe_allow_html=True)
         c.markdown(card("Next Green Window", fmt_clock(gw_time).split(", ")[1], "",
-                        sub=f"in {green_idx}h ({gw_dur}h window)", icon="🌱", value_size="1.5rem",
+                        sub=f"in {green_idx}h ({gw_dur}h window)", icon="🌱", value_size="1.7rem",
                         info="Next sustained low-carbon period in the 48h forecast"),
                    unsafe_allow_html=True)
         d.markdown(
