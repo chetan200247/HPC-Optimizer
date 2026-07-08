@@ -104,6 +104,14 @@ st.markdown("""
   .metric-card {background:#fff; border:1px solid #dfe6e1; border-radius:14px;
                 padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.05);
                 height:100%; min-height:142px;}
+  /* Force every wrapper around a card to fill the row height so card bottoms align */
+  [data-testid="stHorizontalBlock"]:has(.metric-card) {align-items: stretch;}
+  [data-testid="stColumn"]:has(.metric-card) > div,
+  [data-testid="column"]:has(.metric-card) > div,
+  [data-testid="stColumn"]:has(.metric-card) [data-testid="stElementContainer"],
+  [data-testid="column"]:has(.metric-card) [data-testid="stElementContainer"],
+  [data-testid="stMarkdown"]:has(.metric-card),
+  [data-testid="stMarkdownContainer"]:has(.metric-card) {height:100%;}
   .section-h {font-size:1.35rem; font-weight:800; color:#0a1710; margin:3px 0 12px 0;}
   .section-h .sub {font-weight:600; color:#233a2e; font-size:1rem;}
   .mc-info {cursor:help; color:#3a5145; font-size:0.9rem; margin-left:5px;}
@@ -368,7 +376,7 @@ st.sidebar.markdown(
 if st.session_state.page == "ops":
 
     # ── Header (title · freshness+reading · refresh) ──────────────────────────
-    h1, h2, h3 = st.columns([6, 3, 1])
+    h1, h2, h3 = st.columns([6, 3, 1], vertical_alignment="center")
     with h1:
         st.markdown(
             "<div class='page-title'>Operations Manager</div>"
@@ -442,7 +450,7 @@ if st.session_state.page == "ops":
 
         # ── Optimise-for slider (full width, below the table) ─────────────────
         st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
-        s1, s2 = st.columns([1, 1])
+        s1, s2 = st.columns([1, 1], vertical_alignment="center")
         s1.markdown("**Optimise for**  🌿 <span style='color:#15803d;font-weight:700;'>Carbon</span>",
                     unsafe_allow_html=True)
         s2.markdown("<div style='text-align:right;font-weight:700;'>Cost 💲</div>",
@@ -452,7 +460,7 @@ if st.session_state.page == "ops":
                         label_visibility="collapsed",
                         help="Slide left for more carbon savings, right for more cost savings.")
         weight = (100 - opt) / 100.0   # carbon weight
-        l1, l2 = st.columns([1, 1])
+        l1, l2 = st.columns([1, 1], vertical_alignment="center")
         l1.caption("⬅ More carbon savings")
         l2.markdown("<div style='text-align:right;color:#233a2e;font-size:0.95rem;font-weight:600;'>"
                     "More cost savings ➡</div>", unsafe_allow_html=True)
