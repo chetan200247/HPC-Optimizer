@@ -94,7 +94,7 @@ st.markdown("""
       background:#16a34a; border:none; color:#fff; font-weight:700; text-align:left;
       justify-content:flex-start; border-radius:10px;}
   section[data-testid="stSidebar"] button[kind="secondary"] {
-      background:transparent; border:none; color:#cfe6d7; font-weight:600; text-align:left;
+      background:transparent; border:none; color:#f5faf7; font-weight:600; text-align:left;
       justify-content:flex-start; border-radius:10px;}
   section[data-testid="stSidebar"] button[kind="secondary"]:hover {background:#123d27;}
 
@@ -122,7 +122,7 @@ st.markdown("""
   [data-testid="stMarkdownContainer"]:has(.metric-card) {height:100%;}
   .section-h {font-size:1.35rem; font-weight:800; color:#0a1710; margin:3px 0 12px 0;}
   .section-h .sub {font-weight:600; color:#233a2e; font-size:1rem;}
-  .mc-info {cursor:help; color:#3a5145; font-size:0.9rem; margin-left:5px;}
+  .mc-info {cursor:help; color:#000000; font-size:0.9rem; margin-left:5px;}
   /* label = supporting text (smaller) */
   .mc-label {font-size:1rem; color:#1c2c24; font-weight:600;
              display:flex; gap:6px; align-items:center;}
@@ -379,9 +379,9 @@ st.sidebar.markdown(
     "<div style='background:#123d27;border-radius:12px;padding:16px;margin-top:28px;'>"
     "<div style='font-size:1.4rem;'>🌱</div>"
     "<div style='font-weight:700;margin-top:6px;'>Every decision counts.</div>"
-    "<div style='color:#bcd5c5;font-size:0.85rem;margin-top:4px;'>Schedule smart. Reduce carbon.</div>"
+    "<div style='color:#f5faf7;font-size:0.85rem;margin-top:4px;'>Schedule smart. Reduce carbon.</div>"
     "<hr style='border-color:#1e5236;margin:12px 0;'>"
-    "<div style='color:#9dc2ac;font-size:0.78rem;'>Sustainable. Efficient. Responsible.</div>"
+    "<div style='color:#f5faf7;font-size:0.78rem;'>Sustainable. Efficient. Responsible.</div>"
     "</div>", unsafe_allow_html=True)
 
 
