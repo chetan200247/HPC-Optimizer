@@ -30,8 +30,9 @@ try:                                  # optional: load .env for local runs
 except Exception:
     pass
 
-# Slightly larger, dark default font for every Plotly chart
-pio.templates["big"] = go.layout.Template(layout=dict(font=dict(size=14, color="#0f1f16")))
+# Slightly larger, dark, Times New Roman default font for every Plotly chart
+pio.templates["big"] = go.layout.Template(layout=dict(
+    font=dict(size=14, color="#0f1f16", family='"Times New Roman", Times, serif')))
 pio.templates.default = "plotly+big"
 
 # ── Config & palette ──────────────────────────────────────────────────────────
@@ -59,6 +60,11 @@ AMBER   = "#F9A825"
 
 st.markdown("""
 <style>
+  /* Times New Roman across the whole app */
+  html, body, [class*="css"], [data-testid="stAppViewContainer"] *,
+  section[data-testid="stSidebar"] *, button, input, textarea, select {
+      font-family: "Times New Roman", Times, serif !important;}
+
   /* Moderate global font increase */
   html {font-size: 108%;}
 
