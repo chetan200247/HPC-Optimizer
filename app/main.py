@@ -842,12 +842,6 @@ elif st.session_state.page == "csrd":
     node_hours_5d = kpis["total_nodes"] * 24 * 5
     intensity_g_per_nodehour = kpis["total_baseline_kg_5d"] * 1000 / node_hours_5d
 
-    monthly2 = monthly.copy()
-    monthly2["year"] = monthly2["ym"].str[:4].astype(int)
-    yearly_ci = monthly2.groupby("year")["carbon_intensity_gCO2_per_kWh"].mean()
-    grid_trend_abs = yearly_ci.iloc[-1] - yearly_ci.iloc[0]
-    grid_trend_pct = grid_trend_abs / yearly_ci.iloc[0] * 100
-
     # ══════════════════════════════════════════════════════════════════════════
     #  SECTION A · ORNL SUMMIT — FACILITY SAVINGS (5-DAY SAMPLE)
     # ══════════════════════════════════════════════════════════════════════════
@@ -966,61 +960,41 @@ elif st.session_state.page == "csrd":
             "generation-by-fuel data</b> (Jan 2019 – Dec 2022) from the EIA. This is grid "
             "context, independent of ORNL's own workload or scheduling.")
 
-        n1, n2, n3 = st.columns(3)
+        n1, n2 = st.columns(2)
         n1.markdown(card("Avg Grid CI", f"{kpis['mean_ci']:.0f}", "gCO₂/kWh",
                          sub=f"{kpis['ci_min']:.0f}–{kpis['ci_max']:.0f} observed range", icon="☁️"),
                    unsafe_allow_html=True)
         n2.markdown(card("Low-Carbon Share", f"{kpis['low_carbon_share']:.0f}", "%",
                          sub="Nuclear + hydro + solar + wind", icon="🌿"), unsafe_allow_html=True)
-        trend_arrow = "↓" if grid_trend_abs < 0 else "↑"
-        n3.markdown(card("Grid Trend, 2019→2022", f"{trend_arrow} {abs(grid_trend_pct):.1f}", "%",
-                         sub=f"{grid_trend_abs:+.1f} gCO₂/kWh net — non-monotonic (dipped in 2020)",
-                         icon="📈",
-                         info="Year-average carbon intensity fell in 2020, then partially "
-                              "rebounded through 2022. Shown as the honest net change, not a "
-                              "smoothed trend line."), unsafe_allow_html=True)
 
-        cC, cD = st.columns(2)
-        with cC:
-            st.markdown("<div class='section-h' style='font-size:1.05rem;'>TVA Grid Energy Mix</div>",
-                       unsafe_allow_html=True)
-            st.caption("Share of generation by fuel, averaged across the full 2019–2022 period.")
-            cmap = {"Nuclear": "#1565C0", "Natural Gas": "#FB8C00", "Coal": "#6D4C41",
-                    "Hydro": "#00ACC1", "Solar": "#FDD835", "Wind": "#7CB342",
-                    "Petroleum": "#E53935", "Other": "#9E9E9E"}
-            fm = fuel[fuel["share"] > 0.05]
-            fig = go.Figure(go.Pie(labels=fm["fuel"], values=fm["share"], hole=0.55,
-                                   marker_colors=[cmap.get(f, GREY) for f in fm["fuel"]]))
-            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
-                              showlegend=True, legend=dict(font=dict(size=10)))
-            st.plotly_chart(fig, use_container_width=True)
-        with cD:
-            st.markdown("<div class='section-h' style='font-size:1.05rem;'>Fuel Mix Over Time</div>",
-                       unsafe_allow_html=True)
-            st.caption("Monthly generation share by fuel — shows the grid's own transition, "
-                      "not just a single snapshot.")
-            sig_fuels = [f for f in cmap if fuel_monthly[f].mean() > 0.5]
-            fig = go.Figure()
-            for f in sig_fuels:
-                fig.add_trace(go.Scatter(x=fuel_monthly["ym"], y=fuel_monthly[f], mode="lines",
-                                         stackgroup="one", name=f,
-                                         line=dict(width=0.5, color=cmap.get(f, GREY))))
-            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
-                              xaxis_title="Month", yaxis_title="Share of generation (%)",
-                              plot_bgcolor="white", legend=dict(font=dict(size=9)),
-                              xaxis=dict(tickmode="array",
-                                        tickvals=fuel_monthly["ym"][::6].tolist()))
-            st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown("<div style='height:6px;'></div>"
+        st.markdown("<div style='height:10px;'></div>"
                     "<div class='section-h' style='font-size:1.05rem;'>TVA Grid Carbon Intensity "
                     "— Monthly Trend</div>", unsafe_allow_html=True)
         fig = go.Figure(go.Scatter(x=monthly["ym"], y=monthly["carbon_intensity_gCO2_per_kWh"],
                         line=dict(color=BLUE, width=2), fill="tozeroy",
                         fillcolor="rgba(21,101,192,0.08)"))
-        fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10),
+        fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
                           xaxis_title="Month", yaxis_title="Mean CI (gCO₂/kWh)",
                           plot_bgcolor="white")
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("<div style='height:10px;'></div>"
+                    "<div class='section-h' style='font-size:1.05rem;'>Renewable Energy Mix</div>",
+                   unsafe_allow_html=True)
+        renew_map = {"Hydro": "#00ACC1", "Solar": "#FDD835", "Wind": "#7CB342"}
+        rn = fuel[fuel["fuel"].isin(renew_map)].copy()
+        rn["renew_share"] = rn["share"] / rn["share"].sum() * 100
+        rn = rn[rn["renew_share"] > 0.5]
+        st.caption(f"Composition of TVA's true renewable generation (hydro/solar/wind) — this "
+                  f"excludes nuclear, which is low-carbon but not renewable. Renewables are "
+                  f"~{fuel[fuel['fuel'].isin(renew_map)]['share'].sum():.1f}% of TVA's total "
+                  f"generation; the rest of the {kpis['low_carbon_share']:.0f}% low-carbon share "
+                  f"above is nuclear. Wind is a negligible ~0.01% of the renewable mix and is "
+                  f"omitted from the chart as too small to render.")
+        fig = go.Figure(go.Pie(labels=rn["fuel"], values=rn["renew_share"], hole=0.55,
+                               marker_colors=[renew_map.get(f, GREY) for f in rn["fuel"]]))
+        fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
+                          showlegend=True, legend=dict(font=dict(size=10)))
         st.plotly_chart(fig, use_container_width=True)
 
     st.write("")
