@@ -188,10 +188,9 @@ def load():
     integ = pd.read_csv(DATA / "integrated.csv")
     hourly = pd.read_csv(DATA / "ci_hourly.csv")
     monthly = pd.read_csv(DATA / "ci_monthly.csv")
-    fuel = pd.read_csv(DATA / "fuel_mix.csv")
-    fuel_monthly = pd.read_csv(DATA / "fuel_mix_monthly.csv")
+    fuel_daily = pd.read_csv(DATA / "fuel_mix_daily.csv", parse_dates=["date"])
     window = pd.read_csv(DATA / "forecast_window.csv")
-    return kpis, integ, hourly, monthly, fuel, fuel_monthly, window
+    return kpis, integ, hourly, monthly, fuel_daily, window
 
 
 # ── Live grid data via EIA API (with static fallback) ─────────────────────────
@@ -295,7 +294,7 @@ def get_window(refresh_token):
         return pd.read_csv(DATA / "forecast_window.csv"), f"static:{type(exc).__name__}", None
 
 
-kpis, integ, hourly, monthly, fuel, fuel_monthly, _static = load()
+kpis, integ, hourly, monthly, fuel_daily, _static = load()
 
 # Live "data as of" anchor — Eastern Time (ORNL Summit / TVA's own timezone,
 # matching the rest of the project), set on first load, re-stamped by Refresh.
@@ -981,16 +980,59 @@ elif st.session_state.page == "csrd":
         st.markdown("<div style='height:10px;'></div>"
                     "<div class='section-h' style='font-size:1.05rem;'>TVA Grid Energy Mix</div>",
                    unsafe_allow_html=True)
-        st.caption("Share of generation by fuel, averaged across the full 2019–2022 period.")
         cmap = {"Nuclear": "#1565C0", "Natural Gas": "#FB8C00", "Coal": "#6D4C41",
                 "Hydro": "#00ACC1", "Solar": "#FDD835", "Wind": "#7CB342",
                 "Petroleum": "#E53935", "Other": "#9E9E9E"}
-        fm = fuel[fuel["share"] > 0.05]
-        fig = go.Figure(go.Pie(labels=fm["fuel"], values=fm["share"], hole=0.55,
-                               marker_colors=[cmap.get(f, GREY) for f in fm["fuel"]]))
-        fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
-                          showlegend=True, legend=dict(font=dict(size=10)))
-        st.plotly_chart(fig, use_container_width=True)
+        FUEL_CODE_NAMES = {"COL": "Coal", "NG": "Natural Gas", "NUC": "Nuclear", "OIL": "Petroleum",
+                          "OTH": "Other", "SUN": "Solar", "WAT": "Hydro", "WND": "Wind"}
+        FUEL_CODES = list(FUEL_CODE_NAMES)
+
+        dcol1, dcol2 = st.columns([1, 1.4], vertical_alignment="center")
+        granularity = dcol1.radio("Drill down by", ["Day", "Week", "Month", "Year"],
+                                  horizontal=True, index=3, key="fuelmix_gran")
+        min_d, max_d = fuel_daily["date"].min().date(), fuel_daily["date"].max().date()
+
+        if granularity == "Year":
+            years = sorted(fuel_daily["date"].dt.year.unique())
+            sel_year = dcol2.selectbox("Year", years, index=len(years) - 1, key="fuelmix_year")
+            mask = fuel_daily["date"].dt.year == sel_year
+            period_label = str(sel_year)
+        elif granularity == "Month":
+            ym = fuel_daily["date"].dt.to_period("M").astype(str)
+            months = sorted(ym.unique())
+            sel_month = dcol2.selectbox("Month", months, index=len(months) - 1, key="fuelmix_month")
+            mask = ym == sel_month
+            period_label = sel_month
+        elif granularity == "Week":
+            sel_date = dcol2.date_input("Any date in the week", value=max_d,
+                                        min_value=min_d, max_value=max_d, key="fuelmix_week")
+            sel_ts = pd.Timestamp(sel_date)
+            week_start = sel_ts - pd.Timedelta(days=sel_ts.dayofweek)
+            week_end = week_start + pd.Timedelta(days=6)
+            mask = (fuel_daily["date"] >= week_start) & (fuel_daily["date"] <= week_end)
+            period_label = f"{week_start.date()} – {min(week_end, pd.Timestamp(max_d)).date()}"
+        else:
+            sel_date = dcol2.date_input("Day", value=max_d, min_value=min_d, max_value=max_d,
+                                        key="fuelmix_day")
+            mask = fuel_daily["date"] == pd.Timestamp(sel_date)
+            period_label = str(sel_date)
+
+        sub = fuel_daily[mask]
+        gen = sub[FUEL_CODES].sum() if len(sub) else pd.Series(0, index=FUEL_CODES)
+        total = gen.sum()
+        st.caption(f"Share of generation by fuel — {period_label} "
+                  f"({len(sub)} day{'s' if len(sub) != 1 else ''} of data).")
+        if total <= 0:
+            st.info("No generation data available for this period.")
+        else:
+            shares = (gen / total * 100).rename(index=FUEL_CODE_NAMES).reset_index()
+            shares.columns = ["fuel", "share"]
+            fm = shares[shares["share"] > 0.05]
+            fig = go.Figure(go.Pie(labels=fm["fuel"], values=fm["share"], hole=0.55,
+                                   marker_colors=[cmap.get(f, GREY) for f in fm["fuel"]]))
+            fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10),
+                              showlegend=True, legend=dict(font=dict(size=10)))
+            st.plotly_chart(fig, use_container_width=True)
 
     st.write("")
 
