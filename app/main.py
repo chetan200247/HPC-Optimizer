@@ -798,28 +798,39 @@ if st.session_state.page == "ops":
                     "Carbon Intensity &amp; Electricity Price</div>", unsafe_allow_html=True)
         sigma = 0.05 + 0.005 * np.arange(len(CI))          # widening 95% band
         upper, lower = CI * (1 + sigma), CI * (1 - sigma)
+        x_times = pd.date_range(start=NOW, periods=len(CI), freq="h")
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=list(range(len(CI))), y=upper, mode="lines",
+        fig.add_trace(go.Scatter(x=x_times, y=upper, mode="lines",
                                  line=dict(width=0), hoverinfo="skip", showlegend=False))
-        fig.add_trace(go.Scatter(x=list(range(len(CI))), y=lower, mode="lines",
+        fig.add_trace(go.Scatter(x=x_times, y=lower, mode="lines",
                                  line=dict(width=0), fill="tonexty",
                                  fillcolor="rgba(21,128,61,0.15)", hoverinfo="skip",
                                  name="Confidence Band (95%)"))
-        fig.add_trace(go.Scatter(x=list(range(len(CI))), y=CI, mode="lines",
+        fig.add_trace(go.Scatter(x=x_times, y=CI, mode="lines",
                                  line=dict(color=GREEN, width=3),
                                  name="Carbon Intensity (gCO₂/kWh)"))
-        fig.add_trace(go.Scatter(x=list(range(len(PRICE))), y=PRICE, mode="lines", yaxis="y2",
+        fig.add_trace(go.Scatter(x=x_times, y=PRICE, mode="lines", yaxis="y2",
                                  line=dict(color="#9aa5a0", width=1.5, dash="dash"),
                                  name="Electricity Price ($/MWh)"))
-        fig.add_vline(x=clean_idx, line=dict(color=GREEN, dash="dash"),
-                      annotation_text="Next clean window", annotation_position="top",
-                      annotation=dict(bgcolor="white", font=dict(size=12)))
+        # add_vline's built-in annotation_text breaks on a datetime x-axis (Plotly
+        # tries to average two Timestamps internally to place the label, which
+        # raises a TypeError) -- use add_shape + add_annotation instead, with the
+        # x position passed as an ISO string, which is what actually serialises
+        # correctly here (a raw Timestamp does not, verified by hitting a kaleido
+        # "Type is not JSON serializable: Timestamp" error before fixing it).
+        clean_x = x_times[clean_idx].isoformat()
+        fig.add_shape(type="line", x0=clean_x, x1=clean_x, y0=0, y1=1,
+                     xref="x", yref="paper", line=dict(color=GREEN, dash="dash"))
+        fig.add_annotation(x=clean_x, y=1.03, xref="x", yref="paper",
+                           text="Next clean window", showarrow=False,
+                           bgcolor="white", font=dict(size=12, color="black"), yanchor="bottom")
         fig.update_layout(
-            height=400, margin=dict(l=10, r=10, t=75, b=10),
-            xaxis=dict(title="Hours ahead", dtick=6),
+            height=420, margin=dict(l=10, r=10, t=75, b=60),
+            xaxis=dict(title="Date &amp; Hour (ET)", tickformat="%d %b, %I %p",
+                      dtick=6*3600*1000, tickangle=-45),
             yaxis=dict(title="gCO₂/kWh"),
             yaxis2=dict(title="$/MWh", overlaying="y", side="right", showgrid=False),
-            legend=dict(orientation="h", y=1.25, x=0), plot_bgcolor="white")
+            legend=dict(orientation="h", y=1.2, x=0), plot_bgcolor="white")
         st.plotly_chart(fig, use_container_width=True)
 
 
