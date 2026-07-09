@@ -927,18 +927,29 @@ elif st.session_state.page == "csrd":
         st.markdown("<div style='height:10px;'></div>"
                     "<div class='section-h' style='font-size:1.05rem;'>Baseline vs Optimised "
                     "Carbon Emissions — 5 Observed Days</div>", unsafe_allow_html=True)
-        st.caption("Total carbon emitted on each sample day, as-is vs. carbon-aware scheduled.")
+        st.caption("Optimised emissions (green) plus the carbon saved (red segment on top) adds "
+                  "up to the baseline total for that day — the red segment is what carbon-aware "
+                  "scheduling avoided. Shown this way because the day-to-day difference is only "
+                  "~3–5% of the total, which two side-by-side bars would barely show.")
         byday = integ.groupby("snapshot_date").agg(
             baseline=("baseline_carbon_kg", "sum"),
             optimised=("optimized_carbon_kg", "sum")).reset_index()
+        byday["saved"] = byday["baseline"] - byday["optimised"]
+        byday["saved_pct"] = byday["saved"] / byday["baseline"] * 100
         fig = go.Figure()
-        fig.add_trace(go.Bar(x=byday["snapshot_date"], y=byday["baseline"],
-                             name="Baseline", marker_color=RED))
         fig.add_trace(go.Bar(x=byday["snapshot_date"], y=byday["optimised"],
-                             name="Optimised", marker_color=GREEN))
-        fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10), barmode="group",
+                             name="Optimised (actual)", marker_color=GREEN,
+                             text=[f"{v:,.0f} kg" for v in byday["optimised"]],
+                             textposition="inside", insidetextanchor="middle"))
+        fig.add_trace(go.Bar(x=byday["snapshot_date"], y=byday["saved"],
+                             name="Carbon saved", marker_color=RED,
+                             text=[f"−{s:,.0f} kg ({p:.1f}%)" for s, p in
+                                  zip(byday["saved"], byday["saved_pct"])],
+                             textposition="outside"))
+        fig.update_layout(height=340, margin=dict(l=10, r=10, t=30, b=10), barmode="stack",
                           xaxis_title="Snapshot date", yaxis_title="Total carbon (kg CO₂)",
-                          plot_bgcolor="white", legend=dict(orientation="h", y=1.12))
+                          plot_bgcolor="white", legend=dict(orientation="h", y=1.12),
+                          uniformtext=dict(minsize=9, mode="hide"))
         st.plotly_chart(fig, use_container_width=True)
 
     st.write("")
