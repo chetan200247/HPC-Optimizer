@@ -647,7 +647,7 @@ if st.session_state.page == "ops":
                     abs_i = start_i + i
                     hi_style = " style='background:#eef2f7;'" if abs_i == 0 else ""
                     start_html = ("<b style='color:#15803d;'>Now</b>" if o["start"] == 0
-                                 else f"<b style='color:#15803d;'>{fmt_clock(o['ts'])}</b> (+{o['start']}h)")
+                                 else f"<b style='color:#15803d;'>{fmt_full(o['ts'])}</b> (+{o['start']}h)")
                     rank_lab = "★ Best" if abs_i == 0 else f"#{abs_i+1}"
                     rows_html += (f"<tr{hi_style}><td>{rank_lab}</td><td>{start_html}</td>"
                                  f"<td>{o['sched_ci']:.0f} gCO₂/kWh</td>"
@@ -681,7 +681,7 @@ if st.session_state.page == "ops":
                         st.rerun()
 
                 opts_df = pd.DataFrame([{
-                    "Rank": i + 1, "Start": "Now" if o["start"] == 0 else fmt_clock(o["ts"]),
+                    "Rank": i + 1, "Start": "Now" if o["start"] == 0 else fmt_full(o["ts"]),
                     "Hours from now": o["start"], "Predicted CI (gCO2/kWh)": round(o["sched_ci"], 1),
                     "Predicted Price ($/MWh)": round(o["sched_price"], 1),
                     "Price Period": o["tier_label"], "Confidence": o["confidence"],
